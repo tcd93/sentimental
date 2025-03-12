@@ -1,0 +1,13 @@
+version = 0.1
+[default.deploy.parameters]
+stack_name = "sentiment-analysis"
+resolve_s3 = true
+s3_prefix = "sentiment-analysis"
+region = "us-east-1"
+confirm_changeset = true
+capabilities = "CAPABILITY_IAM"
+parameter_overrides = [
+    "RedditClientId=your-client-id",
+    "RedditClientSecret=your-client-secret",
+    "BucketName=your-bucket-name"
+]

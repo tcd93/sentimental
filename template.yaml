@@ -1,0 +1,84 @@
+# cloud formation template for sentiment getter
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Sentiment Analysis Pipeline for Social Media Keywords
+
+Parameters:
+  RedditClientId:
+    Type: String
+    Description: Reddit API Client ID
+  RedditClientSecret:
+    Type: String
+    Description: Reddit API Client Secret
+  BucketName:
+    Type: String
+    Description: S3 Bucket for storing results
+
+Resources:
+  # Lambda Function
+  SentimentFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: sentiment_getter/
+      Handler: lambda_function.lambda_handler
+      Runtime: python3.12
+      Timeout: 60
+      Environment:
+        Variables:
+          REDDIT_CLIENT_ID: !Ref RedditClientId
+          REDDIT_CLIENT_SECRET: !Ref RedditClientSecret
+          S3_BUCKET_NAME: !Ref BucketName
+      Policies:
+        - S3CrudPolicy:
+            BucketName: !Ref BucketName
+        - ComprehendBasicAccessPolicy: {}
+
+  # Step Functions State Machine
+  KeywordPipeline:
+    Type: AWS::Serverless::StateMachine
+    Properties:
+      Type: EXPRESS
+      Definition:
+        StartAt: ProcessKeywords
+        States:
+          ProcessKeywords:
+            Type: Map
+            Iterator:
+              StartAt: ProcessSingleKeyword
+              States:
+                ProcessSingleKeyword:
+                  Type: Task
+                  Resource: !GetAtt SentimentFunction.Arn
+                  End: true
+            End: true
+      Policies:
+        - LambdaInvokePolicy:
+            FunctionName: !Ref SentimentFunction
+      Events:
+        HourlyTrigger:
+          Type: Schedule
+          Properties:
+            Schedule: rate(1 hour)
+            Input: 
+              keywords:
+                - "league of legends"
+                - "valorant"
+                - "minecraft"
+              subreddits: ["gaming", "games"]
+              time_filter: "hour"
+              sort: "hot"
+              post_limit: 5
+
+  # S3 Bucket
+  ResultsBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Ref BucketName
+
+Outputs:
+  StateMachineArn:
+    Description: "State machine ARN"
+    Value: !Ref KeywordPipeline
+  FunctionArn:
+    Description: "Lambda function ARN"
+    Value: !GetAtt SentimentFunction.Arn
