@@ -49,6 +49,19 @@ Resources:
     Properties:
       DisplayName: SentimentAnalysisErrors
 
+  # Lambda Layer for Python dependencies
+  PythonDependenciesLayer:
+    Type: AWS::Serverless::LayerVersion
+    Properties:
+      LayerName: !Sub '${AWS::StackName}-python-deps'
+      Description: Python dependencies for social media APIs (praw, tweepy)
+      ContentUri: layers/python/
+      CompatibleRuntimes:
+        - python3.11
+        - python3.12
+        - python3.13
+      RetentionPolicy: Retain
+
   # Lambda Functions
   ErrorHandlerFunction:
     Type: AWS::Serverless::Function
@@ -71,6 +84,8 @@ Resources:
       Handler: functions/reddit_scraper.lambda_handler
       Runtime: python3.12
       Timeout: 30
+      Layers:
+        - !Ref PythonDependenciesLayer
       Environment:
         Variables:
           REDDIT_CLIENT_ID: !Ref RedditClientId
@@ -87,6 +102,8 @@ Resources:
       Handler: functions/sentiment_analyzer.lambda_handler
       Runtime: python3.12
       Timeout: 60
+      Layers:
+        - !Ref PythonDependenciesLayer
       Environment:
         Variables:
           SENTIMENT_QUEUE_URL: !Ref SentimentQueue
