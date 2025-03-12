@@ -54,16 +54,19 @@ def lambda_handler(event, _):
             continue
 
         # Send results to storage queue
+        message_data = {
+            "post": {
+                **data["post"],
+                "created_at": data["post"]["created_at"].isoformat()
+            },
+            "keyword": data["keyword"],
+            "sentiment": sentiment["ResultList"][0],
+            "source": data["source"],
+        }
+        
         sqs.send_message(
             QueueUrl=SENTIMENT_QUEUE_URL,
-            MessageBody=json.dumps(
-                {
-                    "post": data["post"],
-                    "keyword": data["keyword"],
-                    "sentiment": sentiment["ResultList"][0],
-                    "source": data["source"],
-                }
-            ),
+            MessageBody=json.dumps(message_data),
         )
         processed += 1
 
