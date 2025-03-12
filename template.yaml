@@ -121,12 +121,24 @@ Resources:
             Queue: !GetAtt SentimentQueue.Arn
             BatchSize: 10
 
+  # CloudWatch Log Group for Step Functions
+  StepFunctionsLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/aws/vendedlogs/states/${AWS::StackName}-KeywordPipeline'
+      RetentionInDays: 7
+
   # Step Functions State Machine
-  # https://states-language.net/spec.html#state-machine-variables
   KeywordPipeline:
     Type: AWS::Serverless::StateMachine
     Properties:
       Type: EXPRESS
+      Logging:
+        Level: ALL
+        IncludeExecutionData: true
+        Destinations:
+          - CloudWatchLogsLogGroup:
+              LogGroupArn: !GetAtt StepFunctionsLogGroup.Arn
       Definition:
         StartAt: ProcessKeywords
         States:
@@ -164,6 +176,7 @@ Resources:
             FunctionName: !Ref RedditScraperFunction
         - LambdaInvokePolicy:
             FunctionName: !Ref ErrorHandlerFunction
+        - CloudWatchLogsFullAccess
       # https://docs.aws.amazon.com/eventbridge/latest/userguide/eb-scheduled-rule-pattern.html
       Events:
         HourlyTrigger:
