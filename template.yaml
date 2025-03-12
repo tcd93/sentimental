@@ -55,7 +55,7 @@ Resources:
     Properties:
       LayerName: !Sub '${AWS::StackName}-python-deps'
       Description: Python dependencies for social media APIs (praw, tweepy)
-      ContentUri: layers/python/
+      ContentUri: layers/python-api-packages.zip
       CompatibleRuntimes:
         - python3.11
         - python3.12
