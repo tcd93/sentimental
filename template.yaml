@@ -63,20 +63,6 @@ Resources:
       RetentionPolicy: Retain
 
   # Lambda Functions
-  ErrorHandlerFunction:
-    Type: AWS::Serverless::Function
-    Properties:
-      CodeUri: sentiment_getter/
-      Handler: functions/error_handler.lambda_handler
-      Runtime: python3.12
-      Timeout: 10
-      Environment:
-        Variables:
-          ERROR_SNS_TOPIC: !Ref ErrorTopic
-      Policies:
-        - SNSPublishMessagePolicy:
-            TopicName: !GetAtt ErrorTopic.TopicName
-
   RedditScraperFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -181,18 +167,27 @@ Resources:
                       BackoffRate: 2.0
                   Catch:
                     - ErrorEquals: ["States.ALL"]
-                      Next: RecordError
+                      ResultPath: "$.error"
+                      Next: NotifyError
                   End: true
-                RecordError:
+                NotifyError:
                   Type: Task
-                  Resource: !GetAtt ErrorHandlerFunction.Arn
-                  End: true
+                  Resource: "arn:aws:states:::sns:publish"
+                  Parameters:
+                    TopicArn: !Ref ErrorTopic
+                    Message.$: "$.error"
+                    Subject: "Sentiment Analysis Pipeline Error"
+                  Next: FailExecution
+                FailExecution:
+                  Type: Fail
+                  Error: "ExecutionFailed"
+                  Cause: "Task execution failed, check SNS notification for details"
             End: true
       Policies:
         - LambdaInvokePolicy:
             FunctionName: !Ref RedditScraperFunction
-        - LambdaInvokePolicy:
-            FunctionName: !Ref ErrorHandlerFunction
+        - SNSPublishMessagePolicy:
+            TopicName: !GetAtt ErrorTopic.TopicName
         - CloudWatchLogsFullAccess
       # https://docs.aws.amazon.com/eventbridge/latest/userguide/eb-scheduled-rule-pattern.html
       Events:
