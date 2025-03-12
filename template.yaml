@@ -1,4 +1,5 @@
 # cloud formation template for sentiment getter
+# https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/sam-specification-resources-and-properties.html
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
 Description: Sentiment Analysis Pipeline for Social Media Keywords
@@ -121,6 +122,7 @@ Resources:
             BatchSize: 10
 
   # Step Functions State Machine
+  # https://states-language.net/spec.html#state-machine-variables
   KeywordPipeline:
     Type: AWS::Serverless::StateMachine
     Properties:
@@ -130,15 +132,22 @@ Resources:
         States:
           ProcessKeywords:
             Type: Map
-            Iterator:
+            InputPath: "$.tasks"
+            ItemProcessor:
               StartAt: ScrapeReddit
               States:
                 ScrapeReddit:
                   Type: Task
                   Resource: !GetAtt RedditScraperFunction.Arn
+                  Parameters:
+                    "keyword.$": "$.keyword"
+                    "subreddits.$": "$.subreddits"
+                    "time_filter.$": "$.time_filter"
+                    "sort.$": "$.sort"
+                    "post_limit.$": "$.post_limit"
                   Retry:
                     - ErrorEquals: ["States.TaskFailed", "Lambda.ServiceException"]
-                      IntervalSeconds: 2
+                      IntervalSeconds: 20
                       MaxAttempts: 3
                       BackoffRate: 2.0
                   Catch:
@@ -155,20 +164,38 @@ Resources:
             FunctionName: !Ref RedditScraperFunction
         - LambdaInvokePolicy:
             FunctionName: !Ref ErrorHandlerFunction
+      # https://docs.aws.amazon.com/eventbridge/latest/userguide/eb-scheduled-rule-pattern.html
       Events:
         HourlyTrigger:
           Type: Schedule
           Properties:
             Schedule: rate(1 hour)
-            Input: 
-              keywords:
-                - "league of legends"
-                - "valorant"
-                - "minecraft"
-              subreddits: ["gaming", "games"]
-              time_filter: "hour"
-              sort: "hot"
-              post_limit: 5
+            Input: |
+              {
+                "tasks": [
+                  {
+                    "keyword": "league of legends",
+                    "subreddits": ["all"],
+                    "time_filter": "day",
+                    "sort": "hot",
+                    "post_limit": 10
+                  },
+                  {
+                    "keyword": "valorant",
+                    "subreddits": ["all"],
+                    "time_filter": "day",
+                    "sort": "hot",
+                    "post_limit": 10
+                  },
+                  {
+                    "keyword": "minecraft",
+                    "subreddits": ["all"],
+                    "time_filter": "day",
+                    "sort": "hot",
+                    "post_limit": 15
+                  }
+                ]
+              }
 
   # S3 Bucket
   ResultsBucket:
