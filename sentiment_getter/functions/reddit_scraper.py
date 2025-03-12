@@ -1,10 +1,11 @@
 """
-This module contains the Reddit class, which is used to get reddit posts.
+Lambda function to scrape Reddit posts and send them to SQS for processing.
 """
 
 from datetime import datetime
+import json
 import os
-
+import boto3
 import praw
 from praw.models import Subreddit
 from model.post import Post
@@ -15,6 +16,54 @@ reddit = praw.Reddit(
     client_secret=os.environ["REDDIT_CLIENT_SECRET"],
     user_agent=os.environ.get("REDDIT_USER_AGENT", "sentiment-bot"),
 )
+
+sqs = boto3.client("sqs")
+POSTS_QUEUE_URL = os.environ["POSTS_QUEUE_URL"]
+SOURCE = "reddit"  # Define source for this scraper
+
+
+def lambda_handler(event, _):
+    """
+    Scrape Reddit posts and send to SQS.
+
+    Args:
+        event: Dict containing search parameters
+        _: Lambda context
+
+    Returns:
+        Dict containing status code and message
+    """
+    # Get posts from Reddit
+    posts = get_reddit_posts(
+        subreddits=event.get("subreddits", ["leagueoflegends"]),
+        keyword=event["keyword"],
+        sort=event.get("sort", "hot"),
+        time_filter=event.get("time_filter", "year"),
+        post_limit=event.get("post_limit", 3),
+    )
+
+    # Send each post to SQS
+    for post in posts:
+        sqs.send_message(
+            QueueUrl=POSTS_QUEUE_URL,
+            MessageBody=json.dumps(
+                {
+                    "post": {
+                        "id": post.id,
+                        "title": post.title,
+                        "created_at": post.created_at.isoformat(),
+                        "comments": post.comments,
+                    },
+                    "keyword": event["keyword"],
+                    "source": SOURCE,  # Add source to message
+                }
+            ),
+        )
+
+    return {
+        "statusCode": 200,
+        "body": json.dumps(f"Sent {len(posts)} posts to processing queue"),
+    }
 
 
 def get_reddit_posts(**kwargs) -> list[Post]:

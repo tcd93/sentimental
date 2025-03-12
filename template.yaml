@@ -15,23 +15,110 @@ Parameters:
     Description: S3 Bucket for storing results
 
 Resources:
-  # Lambda Function
-  SentimentFunction:
+  # SQS Queues
+  PostsDLQ:
+    Type: AWS::SQS::Queue
+    Properties:
+      MessageRetentionPeriod: 1209600  # 14 days
+  
+  SentimentDLQ:
+    Type: AWS::SQS::Queue
+    Properties:
+      MessageRetentionPeriod: 1209600  # 14 days
+
+  PostsQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      VisibilityTimeout: 300  # 5 minutes
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt PostsDLQ.Arn
+        maxReceiveCount: 3  # Move to DLQ after 3 failed attempts
+      
+  SentimentQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      VisibilityTimeout: 300
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt SentimentDLQ.Arn
+        maxReceiveCount: 3
+
+  # SNS Topic for Error Notifications
+  ErrorTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      DisplayName: SentimentAnalysisErrors
+
+  # Lambda Functions
+  ErrorHandlerFunction:
     Type: AWS::Serverless::Function
     Properties:
       CodeUri: sentiment_getter/
-      Handler: lambda_function.lambda_handler
+      Handler: functions/error_handler.lambda_handler
       Runtime: python3.12
-      Timeout: 60
+      Timeout: 10
+      Environment:
+        Variables:
+          ERROR_SNS_TOPIC: !Ref ErrorTopic
+      Policies:
+        - SNSPublishMessagePolicy:
+            TopicName: !GetAtt ErrorTopic.TopicName
+
+  RedditScraperFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: sentiment_getter/
+      Handler: functions/reddit_scraper.lambda_handler
+      Runtime: python3.12
+      Timeout: 30
       Environment:
         Variables:
           REDDIT_CLIENT_ID: !Ref RedditClientId
           REDDIT_CLIENT_SECRET: !Ref RedditClientSecret
+          POSTS_QUEUE_URL: !Ref PostsQueue
+      Policies:
+        - SQSSendMessagePolicy:
+            QueueName: !GetAtt PostsQueue.QueueName
+
+  SentimentAnalyzerFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: sentiment_getter/
+      Handler: functions/sentiment_analyzer.lambda_handler
+      Runtime: python3.12
+      Timeout: 60
+      Environment:
+        Variables:
+          SENTIMENT_QUEUE_URL: !Ref SentimentQueue
+      Policies:
+        - ComprehendBasicAccessPolicy: {}
+        - SQSSendMessagePolicy:
+            QueueName: !GetAtt SentimentQueue.QueueName
+      Events:
+        SQSEvent:
+          Type: SQS
+          Properties:
+            Queue: !GetAtt PostsQueue.Arn
+            BatchSize: 10
+
+  StorageFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: sentiment_getter/
+      Handler: functions/storage.lambda_handler
+      Runtime: python3.12
+      Timeout: 15
+      Environment:
+        Variables:
           S3_BUCKET_NAME: !Ref BucketName
       Policies:
         - S3CrudPolicy:
             BucketName: !Ref BucketName
-        - ComprehendBasicAccessPolicy: {}
+      Events:
+        SQSEvent:
+          Type: SQS
+          Properties:
+            Queue: !GetAtt SentimentQueue.Arn
+            BatchSize: 10
 
   # Step Functions State Machine
   KeywordPipeline:
@@ -44,16 +131,30 @@ Resources:
           ProcessKeywords:
             Type: Map
             Iterator:
-              StartAt: ProcessSingleKeyword
+              StartAt: ScrapeReddit
               States:
-                ProcessSingleKeyword:
+                ScrapeReddit:
                   Type: Task
-                  Resource: !GetAtt SentimentFunction.Arn
+                  Resource: !GetAtt RedditScraperFunction.Arn
+                  Retry:
+                    - ErrorEquals: ["States.TaskFailed", "Lambda.ServiceException"]
+                      IntervalSeconds: 2
+                      MaxAttempts: 3
+                      BackoffRate: 2.0
+                  Catch:
+                    - ErrorEquals: ["States.ALL"]
+                      Next: RecordError
+                  End: true
+                RecordError:
+                  Type: Task
+                  Resource: !GetAtt ErrorHandlerFunction.Arn
                   End: true
             End: true
       Policies:
         - LambdaInvokePolicy:
-            FunctionName: !Ref SentimentFunction
+            FunctionName: !Ref RedditScraperFunction
+        - LambdaInvokePolicy:
+            FunctionName: !Ref ErrorHandlerFunction
       Events:
         HourlyTrigger:
           Type: Schedule
@@ -79,6 +180,15 @@ Outputs:
   StateMachineArn:
     Description: "State machine ARN"
     Value: !Ref KeywordPipeline
-  FunctionArn:
-    Description: "Lambda function ARN"
-    Value: !GetAtt SentimentFunction.Arn
+  ScraperFunctionArn:
+    Description: "Reddit scraper function ARN"
+    Value: !GetAtt RedditScraperFunction.Arn
+  AnalyzerFunctionArn:
+    Description: "Sentiment analyzer function ARN"
+    Value: !GetAtt SentimentAnalyzerFunction.Arn
+  StorageFunctionArn:
+    Description: "Storage function ARN"
+    Value: !GetAtt StorageFunction.Arn
+  ErrorTopicArn:
+    Description: "Error notification topic ARN"
+    Value: !Ref ErrorTopic
