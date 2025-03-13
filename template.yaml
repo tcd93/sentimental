@@ -60,6 +60,13 @@ Resources:
         - python3.13
       RetentionPolicy: Retain
 
+  # Log Groups with 1 week retention
+  RedditScraperLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/${AWS::StackName}-reddit-scraper"
+      RetentionInDays: 7
+
   # Lambda Functions
   RedditScraperFunction:
     Type: AWS::Serverless::Function
@@ -68,6 +75,8 @@ Resources:
       Handler: functions/reddit_scraper.lambda_handler
       Runtime: python3.12
       Timeout: 30
+      LoggingConfig:
+        LogGroup: !Ref RedditScraperLogGroup
       Layers:
         - !Ref PythonDependenciesLayer
       Environment:
@@ -79,6 +88,12 @@ Resources:
         - SQSSendMessagePolicy:
             QueueName: !GetAtt PostsQueue.QueueName
 
+  SentimentAnalyzerLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/${AWS::StackName}-sentiment-analyzer"
+      RetentionInDays: 7
+
   SentimentAnalyzerFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -86,6 +101,8 @@ Resources:
       Handler: functions/sentiment_analyzer.lambda_handler
       Runtime: python3.12
       Timeout: 60
+      LoggingConfig:
+        LogGroup: !Ref SentimentAnalyzerLogGroup
       Layers:
         - !Ref PythonDependenciesLayer
       Environment:
@@ -297,7 +314,12 @@ Resources:
         AttributeName: ttl
         Enabled: true
 
-  # Lambda function to poll for job completion
+  JobPollerLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/${AWS::StackName}-job-poller"
+      RetentionInDays: 7
+
   JobPollerFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -305,6 +327,8 @@ Resources:
       Handler: functions/job_poller.lambda_handler
       Runtime: python3.12
       Timeout: 60
+      LoggingConfig:
+        LogGroup: !Ref JobPollerLogGroup
       Environment:
         Variables:
           S3_BUCKET_NAME: !Ref BucketName
