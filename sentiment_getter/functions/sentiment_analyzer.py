@@ -41,9 +41,9 @@ def start_sentiment_analysis_job(
     Returns:
         dict: Job information including job ID and input file location
     """
-    comment_text = post.get_comment_text()
-    if not comment_text.strip():
-        logger.info("Post has no comments to analyze")
+    text = post.get_text()
+    if not text.strip():
+        logger.info("Post has no text to analyze")
         return None
 
     # Create a unique job name if not provided
@@ -57,7 +57,7 @@ def start_sentiment_analysis_job(
     # Upload input file to S3
     logger.info("Uploading input file to S3: %s", input_key)
     s3.put_object(
-        Bucket=BUCKET_NAME, Key=input_key, Body=comment_text, ContentType="text/plain"
+        Bucket=BUCKET_NAME, Key=input_key, Body=text, ContentType="text/plain"
     )
 
     # Start Comprehend sentiment analysis job
@@ -144,7 +144,7 @@ def lambda_handler(event, _):
 
         if job_info:
             job_results.append(job_info)
-            logger.info("Started sentiment analysis job %s for post %s", job_info["job_id"], post.id)
+            logger.info("Started job %s for post %s", job_info["job_id"], post.id)
 
     if not job_results:
         logger.info("No valid posts to analyze")

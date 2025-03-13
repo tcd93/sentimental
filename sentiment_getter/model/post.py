@@ -14,23 +14,24 @@ class Post:
     id: str
     title: str
     created_at: datetime
+    body: str
     comments: list[str]
 
-    def get_comment_text(self) -> str:
-        """Return all comments joined as a single string."""
-        return "\n".join(self.comments)
-    
+    def get_text(self) -> str:
+        """Return all texts joined as a single string."""
+        return self.title + "\n" + self.body + "\n" + "\n".join(self.comments)
+
     def to_dict(self) -> dict:
         """Convert Post to dictionary for serialization."""
         result = asdict(self)
         # Convert datetime to ISO format string
         result['created_at'] = self.created_at.isoformat()
         return result
-    
+
     def to_json(self) -> str:
         """Convert Post to JSON string."""
         return json.dumps(self.to_dict())
-    
+
     @classmethod
     def from_dict(cls, data: dict) -> 'Post':
         """Create Post from dictionary."""
@@ -38,7 +39,7 @@ class Post:
         if isinstance(data['created_at'], str):
             data['created_at'] = datetime.fromisoformat(data['created_at'])
         return cls(**data)
-    
+
     @classmethod
     def from_json(cls, json_str: str) -> 'Post':
         """Create Post from JSON string."""

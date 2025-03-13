@@ -8,7 +8,7 @@ import os
 import logging
 import boto3
 import praw
-from praw.models import Subreddit
+from praw.models import Subreddit, Submission
 from model.post import Post
 
 # Configure logging
@@ -102,16 +102,19 @@ def get_reddit_posts(**kwargs) -> list[Post]:
     for post in subreddit.search(
         query=keyword, sort=sort, time_filter=time_filter, limit=post_limit
     ):
+        post: Submission = post
         post.comments.replace_more(limit=0)
         top_comments = map(lambda c: c.body, post.comments.list()[:top_comments_limit])
 
-        posts.append(
-            Post(
-                id=post.id,
-                title=post.title,
-                created_at=datetime.fromtimestamp(post.created_utc),
-                comments=list(top_comments),
+        if post.num_comments >= 2:
+            posts.append(
+                Post(
+                    id=post.id,
+                    title=post.title,
+                    created_at=datetime.fromtimestamp(post.created_utc),
+                    body=post.selftext,
+                    comments=list(top_comments),
+                )
             )
-        )
 
     return posts
