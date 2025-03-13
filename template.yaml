@@ -220,21 +220,24 @@ Resources:
                     "subreddits": ["all"],
                     "time_filter": "day",
                     "sort": "hot",
-                    "post_limit": 10
+                    "post_limit": 10,
+                    "top_comments_limit": 10
                   },
                   {
                     "keyword": "valorant",
                     "subreddits": ["all"],
                     "time_filter": "day",
                     "sort": "hot",
-                    "post_limit": 10
+                    "post_limit": 10,
+                    "top_comments_limit": 10
                   },
                   {
                     "keyword": "minecraft",
                     "subreddits": ["all"],
                     "time_filter": "day",
                     "sort": "hot",
-                    "post_limit": 15
+                    "post_limit": 15,
+                    "top_comments_limit": 10
                   }
                 ]
               }

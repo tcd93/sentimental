@@ -27,7 +27,7 @@ JOB_INPUT_PREFIX = "comprehend-jobs/input/"
 
 
 def start_sentiment_analysis_job(
-    post: Post, job_name=None, keyword=None, source=None
+    post: Post, keyword: str, source: str, job_name: str = None
 ):
     """
     Start an asynchronous sentiment analysis job using AWS Comprehend for a single post.
@@ -85,8 +85,8 @@ def start_sentiment_analysis_job(
                     "job_name": job_name,
                     "status": "SUBMITTED",
                     "created_at": datetime.now().isoformat(),
-                    "keyword": keyword if keyword else "unknown",
-                    "source": source if source else "reddit",
+                    "keyword": keyword,
+                    "source": source,
                     "post_metadata": {
                         "id": post.id,
                         "title": post.title,
@@ -136,8 +136,8 @@ def lambda_handler(event, _):
         # Parse message
         data = json.loads(record["body"])
         post = Post.from_dict(data["post"])
-        keyword = data.get("keyword", "unknown")
-        source = data.get("source", "reddit")
+        keyword = data["keyword"]
+        source = data["source"]
 
         # Start a sentiment analysis job for this post
         job_info = start_sentiment_analysis_job(post, keyword=keyword, source=source)

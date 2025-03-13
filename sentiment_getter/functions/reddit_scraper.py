@@ -45,11 +45,12 @@ def lambda_handler(event, _):
 
     # Get posts from Reddit
     posts = get_reddit_posts(
-        subreddits=event.get("subreddits", ["leagueoflegends"]),
+        subreddits=event.get("subreddits", ["all"]),
         keyword=event["keyword"],
         sort=event.get("sort", "hot"),
-        time_filter=event.get("time_filter", "year"),
-        post_limit=event.get("post_limit", 3),
+        time_filter=event.get("time_filter", "day"),
+        post_limit=event.get("post_limit", 10),
+        top_comments_limit=event.get("top_comments_limit", 10),
     )
 
     logger.info("Found %d posts matching criteria", len(posts))
@@ -84,17 +85,17 @@ def get_reddit_posts(**kwargs) -> list[Post]:
             sort (str): How to sort results ('relevance', 'hot', 'top', 'new', 'comments')
             time_filter (str): Time window to search ('all', 'day', 'hour', 'month', 'week', 'year')
             post_limit (int): Maximum number of posts to retrieve
-            n (int): Number of top comments to get per post
+            top_comments_limit (int): Number of top comments to get per post
 
     Returns:
         list[Post]: List of Post objects containing matched posts and their top comments
     """
     subreddits = kwargs["subreddits"]
     keyword = kwargs["keyword"]
-    sort = kwargs.get("sort", "hot")
-    time_filter = kwargs.get("time_filter", "year")
-    post_limit = kwargs.get("post_limit", 5)
-    n = kwargs.get("n", 5)
+    sort = kwargs["sort"]
+    time_filter = kwargs["time_filter"]
+    post_limit = kwargs["post_limit"]
+    top_comments_limit = kwargs["top_comments_limit"]
 
     posts = []
     subreddit: Subreddit = reddit.subreddit("+".join(subreddits))
@@ -102,7 +103,7 @@ def get_reddit_posts(**kwargs) -> list[Post]:
         query=keyword, sort=sort, time_filter=time_filter, limit=post_limit
     ):
         post.comments.replace_more(limit=0)
-        top_comments = map(lambda c: c.body, post.comments.list()[:n])
+        top_comments = map(lambda c: c.body, post.comments.list()[:top_comments_limit])
 
         posts.append(
             Post(
