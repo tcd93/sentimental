@@ -4,9 +4,13 @@ Lambda function to store sentiment analysis results in S3.
 
 import json
 import os
-from datetime import datetime
+import logging
 import boto3
 from model.post import Post
+
+# Configure logging
+logger = logging.getLogger()
+logger.setLevel(logging.INFO)
 
 s3 = boto3.client("s3")
 BUCKET_NAME = os.environ["S3_BUCKET_NAME"]
@@ -23,14 +27,16 @@ def lambda_handler(event, _):
     Returns:
         Dict containing status code and message
     """
+    logger.info("Starting storage for %d messages", len(event.get("Records", [])))
     processed = 0
 
-    for record in event["Records"]:
+    for record in event.get("Records", []):
         # Parse message
         data = json.loads(record["body"])
         post_data = data["post"]
-        post_data["created_at"] = datetime.fromisoformat(post_data["created_at"])
-        post = Post(**post_data)
+
+        # Create Post object using from_dict
+        post = Post.from_dict(post_data)
 
         # Create S3 path with partitioning
         created_time = post.created_at
@@ -41,19 +47,20 @@ def lambda_handler(event, _):
         )
 
         # Store in S3
+        result_data = {
+            "source": data["source"],
+            "id": post.id,
+            "post_title": post.title,
+            "created_time": post.created_at.isoformat(),
+            "sentiment": data["sentiment"]["Sentiment"],
+            "sentiment_score": data["sentiment"]["SentimentScore"],
+        }
+
+        logger.info("Storing results in S3 at %s", path)
         s3.put_object(
             Bucket=BUCKET_NAME,
             Key=path,
-            Body=json.dumps(
-                {
-                    "source": data["source"],
-                    "id": post.id,
-                    "post_title": post.title,
-                    "created_time": post.created_at.isoformat(),
-                    "sentiment": data["sentiment"]["Sentiment"],
-                    "sentiment_score": data["sentiment"]["SentimentScore"],
-                }
-            ),
+            Body=json.dumps(result_data, indent=2),
             ContentType="application/json",
         )
         processed += 1

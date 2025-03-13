@@ -5,7 +5,6 @@ Lambda function to analyze sentiment of posts and send results to storage queue.
 import json
 import os
 import logging
-from datetime import datetime
 import boto3
 from model.post import Post
 
@@ -18,50 +17,48 @@ comprehend = boto3.client("comprehend")
 SENTIMENT_QUEUE_URL = os.environ["SENTIMENT_QUEUE_URL"]
 
 
-def analyze_sentiment(posts: list[Post]) -> dict | None:
-    """Analyze sentiment of text using AWS Comprehend."""
-    if not posts:
-        return {
-            "ResultList": [],
-            "ErrorList": [],
-        }
-    
-    all_comments = []
-    for post in posts:
-        if post.get_comment_text() != "":
-            all_comments.append(post.get_comment_text())
-    
-    # {
-    #     "ErrorList": [ 
-    #         { 
-    #             "ErrorCode": "string",
-    #             "ErrorMessage": "string",
-    #             "Index": number
-    #         }
-    #     ],
-    #     "ResultList": [ 
-    #         { 
-    #             "Index": number,
-    #             "Sentiment": "string",
-    #             "SentimentScore": { 
-    #                 "Mixed": number,
-    #                 "Negative": number,
-    #                 "Neutral": number,
-    #                 "Positive": number
-    #             }
-    #         }
-    #     ]
-    # }
-    if len(all_comments) > 0:
-        return comprehend.batch_detect_sentiment(
-            TextList=all_comments,
-            LanguageCode="en",
-        )
+def analyze_sentiment(posts: list[Post]):
+    """
+    Analyze sentiment of text using AWS Comprehend.
 
-    return {
-        "ResultList": [],
-        "ErrorList": [],
-    }
+    Args:
+        posts: List of Post objects to analyze
+
+    Returns:
+        dict: Map of post IDs to sentiment results and a list of errors
+    """
+    if not posts:
+        return {"results": {}, "errors": []}
+
+    # Filter out posts with no comments
+    valid_posts = []
+    post_id_map = {}  # Maps index to post ID
+
+    for post in posts:
+        comment_text = post.get_comment_text()
+        if comment_text.strip():  # Only include posts with non-empty comments
+            post_id_map[len(valid_posts)] = post.id
+            valid_posts.append(post)
+
+    if not valid_posts:
+        logger.info("No posts with comments to analyze")
+        return {"results": {}, "errors": []}
+
+    # Call AWS Comprehend
+    response = comprehend.batch_detect_sentiment(
+        TextList=[post.get_comment_text() for post in valid_posts],
+        LanguageCode="en",
+    )
+
+    # Convert list results to a map of post ID -> sentiment
+    results_map = {}
+    for result in response.get("ResultList", []):
+        index = result["Index"]
+        if index in post_id_map:
+            post_id = post_id_map[index]
+            results_map[post_id] = result
+
+    return {"results": results_map, "errors": response.get("ErrorList", [])}
 
 
 def lambda_handler(event, _):
@@ -75,60 +72,63 @@ def lambda_handler(event, _):
     Returns:
         Dict containing status code and message
     """
-    processed = 0
-    logger.info(f"Processing {len(event['Records'])} records")
+    records = event.get("Records", [])
+    logger.info("Starting sentiment analysis for %d messages", len(records))
 
-    posts: list[Post] = []
-    for record in event["Records"]:
+    if not records:
+        return {
+            "statusCode": 200,
+            "body": json.dumps("No records to process"),
+        }
+
+    # Collect all posts from records
+    posts = []
+    post_data_map = {}  # Map to store original data for each post
+
+    for record in records:
         # Parse message
         data = json.loads(record["body"])
-        logger.info(f"Processing post data: {json.dumps(data, indent=2)}")
-        
-        post_data = data["post"]
-        post_data["created_at"] = datetime.fromisoformat(post_data["created_at"])
-        post = Post(**post_data)
-        posts.append(post)
+        post = Post.from_dict(data["post"])
 
-    # Analyze sentiment
-    sentiment = analyze_sentiment(posts)
-    if len(sentiment["ResultList"]) == 0:
-        logger.warning("Error analyzing sentiment for posts")
-        return {
-            "statusCode": 200,
-            "body": "No sentiment results returned for posts",
-        }
-    if len(sentiment["ErrorList"]) > 0:
-        logger.warning("Error analyzing sentiment for posts")
-        return {
-            "statusCode": 200,
-            "body": f"Error analyzing sentiment for posts, {sentiment['ErrorList'][0]}",
-        }
-    
-    for result in sentiment["ResultList"]:
-        post: Post = posts[result["Index"]]
-        # Send results to storage queue
-        # TODO: all these serializing and deserializing is a pain
-        message_data = {
-            "post": {
-                "id": post.id,
-                "title": post.title,
-                "created_at": post.created_at.isoformat(),
-                "comments": post.comments,
-            },
+        posts.append(post)
+        # Store original data for later use
+        post_data_map[post.id] = {
+            "post": post,
             "keyword": data["keyword"],
-            "sentiment": result["Sentiment"],
-            "sentiment_score": result["SentimentScore"],
             "source": data["source"],
         }
-        
-        logger.info(f"Sending message to queue")
+
+    # Batch analyze sentiment for all posts
+    sentiment_results = analyze_sentiment(posts)
+    processed = 0
+
+    # Process results and send to storage queue
+    for post_id, result in sentiment_results.get("results", {}).items():
+        if post_id not in post_data_map:
+            logger.error("Invalid post ID %s", post_id)
+            continue
+
+        post = post_data_map[post_id]["post"]
+        original_data = post_data_map[post_id]
+
+        # Send results to storage queue
+        result_data = {
+            "post": post.to_dict(),
+            "keyword": original_data["keyword"],
+            "sentiment": result,
+            "source": original_data["source"],
+        }
+
+        logger.info("Sending sentiment results for post %s to storage queue", post.id)
         sqs.send_message(
-            QueueUrl=SENTIMENT_QUEUE_URL,
-            MessageBody=json.dumps(message_data),
+            QueueUrl=SENTIMENT_QUEUE_URL, MessageBody=json.dumps(result_data)
         )
         processed += 1
 
-    logger.info(f"Successfully processed {processed} posts")
+    # Log any errors
+    for error in sentiment_results.get("errors", []):
+        logger.error("Error analyzing sentiment: %s", json.dumps(error))
+
     return {
         "statusCode": 200,
         "body": json.dumps(f"Processed sentiment for {processed} posts"),

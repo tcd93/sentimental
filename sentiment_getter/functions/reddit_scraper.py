@@ -38,7 +38,10 @@ def lambda_handler(event, _):
     Returns:
         Dict containing status code and message
     """
-    logger.info(f"Starting Reddit scraper with parameters: {json.dumps(event, indent=2)}")
+    logger.info(
+        "Starting Reddit scraper with parameters: %s",
+        json.dumps(event, indent=2)
+    )
 
     # Get posts from Reddit
     posts = get_reddit_posts(
@@ -49,31 +52,22 @@ def lambda_handler(event, _):
         post_limit=event.get("post_limit", 3),
     )
 
-    logger.info(f"Found {len(posts)} posts matching criteria")
+    logger.info("Found %d posts matching criteria", len(posts))
 
     # Send each post to SQS
-    sent_count = 0
     for post in posts:
         message_data = {
-            "post": {
-                "id": post.id,
-                "title": post.title,
-                "created_at": post.created_at.isoformat(),
-                "comments": post.comments,
-            },
+            "post": post.to_dict(),
             "keyword": event["keyword"],
             "source": SOURCE,
         }
-        logger.info(f"Sending post {post.id} to queue")
-        logger.debug(f"Message data: {json.dumps(message_data, indent=2)}")
-        
+        logger.info("Sending post %s to queue", post.id)
+
         sqs.send_message(
             QueueUrl=POSTS_QUEUE_URL,
             MessageBody=json.dumps(message_data),
         )
-        sent_count += 1
 
-    logger.info(f"Successfully sent {sent_count} posts to processing queue")
     return {
         "statusCode": 200,
         "body": json.dumps(f"Sent {len(posts)} posts to processing queue"),
@@ -102,15 +96,11 @@ def get_reddit_posts(**kwargs) -> list[Post]:
     post_limit = kwargs.get("post_limit", 5)
     n = kwargs.get("n", 5)
 
-    logger.info(f"Searching subreddits: {', '.join(subreddits)} for keyword: {keyword}")
-    logger.info(f"Search parameters - sort: {sort}, time_filter: {time_filter}, limit: {post_limit}")
-
     posts = []
     subreddit: Subreddit = reddit.subreddit("+".join(subreddits))
     for post in subreddit.search(
         query=keyword, sort=sort, time_filter=time_filter, limit=post_limit
     ):
-        logger.debug(f"Processing post {post.id}: {post.title}")
         post.comments.replace_more(limit=0)
         top_comments = map(lambda c: c.body, post.comments.list()[:n])
 
@@ -122,6 +112,5 @@ def get_reddit_posts(**kwargs) -> list[Post]:
                 comments=list(top_comments),
             )
         )
-        logger.debug(f"Added post {post.id} with {n} comments")
 
     return posts
