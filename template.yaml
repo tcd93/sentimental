@@ -1,6 +1,6 @@
 # cloud formation template for sentiment getter
 # https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/sam-specification-resources-and-properties.html
-AWSTemplateFormatVersion: '2010-09-09'
+AWSTemplateFormatVersion: "2010-09-09"
 Transform: AWS::Serverless-2016-10-31
 Description: Sentiment Analysis Pipeline for Social Media Keywords
 
@@ -20,28 +20,15 @@ Resources:
   PostsDLQ:
     Type: AWS::SQS::Queue
     Properties:
-      MessageRetentionPeriod: 1209600  # 14 days
-  
-  SentimentDLQ:
-    Type: AWS::SQS::Queue
-    Properties:
-      MessageRetentionPeriod: 1209600  # 14 days
+      MessageRetentionPeriod: 1209600 # 14 days
 
   PostsQueue:
     Type: AWS::SQS::Queue
     Properties:
-      VisibilityTimeout: 300  # 5 minutes
+      VisibilityTimeout: 300 # 5 minutes
       RedrivePolicy:
         deadLetterTargetArn: !GetAtt PostsDLQ.Arn
-        maxReceiveCount: 3  # Move to DLQ after 3 failed attempts
-      
-  SentimentQueue:
-    Type: AWS::SQS::Queue
-    Properties:
-      VisibilityTimeout: 300
-      RedrivePolicy:
-        deadLetterTargetArn: !GetAtt SentimentDLQ.Arn
-        maxReceiveCount: 3
+        maxReceiveCount: 3 # Move to DLQ after 3 failed attempts
 
   # SNS Topic for Error Notifications
   ErrorTopic:
@@ -53,7 +40,7 @@ Resources:
   PythonDependenciesLayer:
     Type: AWS::Serverless::LayerVersion
     Properties:
-      LayerName: !Sub '${AWS::StackName}-python-deps'
+      LayerName: !Sub "${AWS::StackName}-python-deps"
       Description: Python dependencies for social media APIs (praw, tweepy)
       ContentUri: layers/python-api-packages.zip
       CompatibleRuntimes:
@@ -92,11 +79,29 @@ Resources:
         - !Ref PythonDependenciesLayer
       Environment:
         Variables:
-          SENTIMENT_QUEUE_URL: !Ref SentimentQueue
+          S3_BUCKET_NAME: !Ref BucketName
+          COMPREHEND_ROLE_ARN: !GetAtt ComprehendServiceRole.Arn
+          JOBS_TABLE_NAME: !Ref ComprehendJobsTable
       Policies:
-        - ComprehendBasicAccessPolicy: {}
-        - SQSSendMessagePolicy:
-            QueueName: !GetAtt SentimentQueue.QueueName
+        - Version: "2012-10-17"
+          Statement:
+            - Effect: Allow
+              Action:
+                - "comprehend:*"
+              Resource: "*"
+            - Effect: Allow
+              Action:
+                - iam:PassRole
+              Resource: !GetAtt ComprehendServiceRole.Arn
+              Condition:
+                StringEquals:
+                  "iam:PassedToService": "comprehend.amazonaws.com"
+        - S3CrudPolicy:
+            BucketName: !Ref BucketName
+        - SQSPollerPolicy:
+            QueueName: !GetAtt PostsQueue.QueueName
+        - DynamoDBCrudPolicy:
+            TableName: !Ref ComprehendJobsTable
       Events:
         SQSEvent:
           Type: SQS
@@ -104,31 +109,11 @@ Resources:
             Queue: !GetAtt PostsQueue.Arn
             BatchSize: 10
 
-  StorageFunction:
-    Type: AWS::Serverless::Function
-    Properties:
-      CodeUri: sentiment_getter/
-      Handler: functions/storage.lambda_handler
-      Runtime: python3.12
-      Timeout: 15
-      Environment:
-        Variables:
-          S3_BUCKET_NAME: !Ref BucketName
-      Policies:
-        - S3CrudPolicy:
-            BucketName: !Ref BucketName
-      Events:
-        SQSEvent:
-          Type: SQS
-          Properties:
-            Queue: !GetAtt SentimentQueue.Arn
-            BatchSize: 10
-
   # CloudWatch Log Group for Step Functions
   StepFunctionsLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
-      LogGroupName: !Sub '/aws/vendedlogs/states/${AWS::StackName}-KeywordPipeline'
+      LogGroupName: !Sub "/aws/vendedlogs/states/${AWS::StackName}-KeywordPipeline"
       RetentionInDays: 7
 
   # Step Functions State Machine
@@ -161,7 +146,8 @@ Resources:
                     "sort.$": "$.sort"
                     "post_limit.$": "$.post_limit"
                   Retry:
-                    - ErrorEquals: ["States.TaskFailed", "Lambda.ServiceException"]
+                    - ErrorEquals:
+                        ["States.TaskFailed", "Lambda.ServiceException"]
                       IntervalSeconds: 20
                       MaxAttempts: 3
                       BackoffRate: 2.0
@@ -222,11 +208,86 @@ Resources:
                 ]
               }
 
-  # S3 Bucket
-  ResultsBucket:
-    Type: AWS::S3::Bucket
+  # IAM Role for Comprehend to access S3
+  ComprehendServiceRole:
+    Type: AWS::IAM::Role
     Properties:
-      BucketName: !Ref BucketName
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: comprehend.amazonaws.com
+            Action: "sts:AssumeRole"
+            Condition:
+              StringEquals:
+                "aws:SourceAccount": !Ref "AWS::AccountId"
+      ManagedPolicyArns:
+        - "arn:aws:iam::aws:policy/AmazonS3FullAccess"
+      Policies:
+        - PolicyName: ComprehendServiceRolePolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - "s3:GetObject"
+                  - "s3:ListBucket"
+                  - "s3:PutObject"
+                Resource:
+                  - !Sub "arn:aws:s3:::${BucketName}"
+                  - !Sub "arn:aws:s3:::${BucketName}/*"
+
+  # DynamoDB table to track job status
+  ComprehendJobsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub "${AWS::StackName}-comprehend-jobs"
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: job_id
+          AttributeType: S
+        - AttributeName: status
+          AttributeType: S
+      KeySchema:
+        - AttributeName: job_id
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: status-index
+          KeySchema:
+            - AttributeName: status
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
+
+  # Lambda function to poll for job completion
+  JobPollerFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: sentiment_getter/
+      Handler: functions/job_poller.lambda_handler
+      Runtime: python3.12
+      Timeout: 60
+      Environment:
+        Variables:
+          S3_BUCKET_NAME: !Ref BucketName
+          JOBS_TABLE_NAME: !Ref ComprehendJobsTable
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref ComprehendJobsTable
+        - Version: "2012-10-17"
+          Statement:
+            - Effect: Allow
+              Action:
+                - "comprehend:*"
+              Resource: "*"
+        - S3CrudPolicy:
+            BucketName: !Ref BucketName
+      Events:
+        ScheduleEvent:
+          Type: Schedule
+          Properties:
+            Schedule: rate(1 minute)
 
 Outputs:
   StateMachineArn:
@@ -238,9 +299,12 @@ Outputs:
   AnalyzerFunctionArn:
     Description: "Sentiment analyzer function ARN"
     Value: !GetAtt SentimentAnalyzerFunction.Arn
-  StorageFunctionArn:
-    Description: "Storage function ARN"
-    Value: !GetAtt StorageFunction.Arn
   ErrorTopicArn:
     Description: "Error notification topic ARN"
     Value: !Ref ErrorTopic
+  JobPollerFunctionArn:
+    Description: "Job poller function ARN"
+    Value: !GetAtt JobPollerFunction.Arn
+  ComprehendJobsTableName:
+    Description: "DynamoDB table for tracking Comprehend jobs"
+    Value: !Ref ComprehendJobsTable
