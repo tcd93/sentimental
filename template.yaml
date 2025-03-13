@@ -13,9 +13,20 @@ Parameters:
     Description: Reddit API Client Secret
   BucketName:
     Type: String
-    Description: S3 Bucket for storing results
+    Description: S3 Bucket for storing Comprehend input/output
 
 Resources:
+  # S3 Bucket for Comprehend input/output
+  SentimentBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Ref BucketName
+      LifecycleConfiguration:
+        Rules:
+          - Id: DeleteOldFiles
+            Status: Enabled
+            ExpirationInDays: 60
+
   # SQS Queues
   PostsDLQ:
     Type: AWS::SQS::Queue
@@ -82,6 +93,7 @@ Resources:
           S3_BUCKET_NAME: !Ref BucketName
           COMPREHEND_ROLE_ARN: !GetAtt ComprehendServiceRole.Arn
           JOBS_TABLE_NAME: !Ref ComprehendJobsTable
+          RESULTS_TABLE_NAME: !Ref SentimentResultsTable
       Policies:
         - Version: "2012-10-17"
           Statement:
@@ -96,12 +108,14 @@ Resources:
               Condition:
                 StringEquals:
                   "iam:PassedToService": "comprehend.amazonaws.com"
-        - S3CrudPolicy:
-            BucketName: !Ref BucketName
         - SQSPollerPolicy:
             QueueName: !GetAtt PostsQueue.QueueName
         - DynamoDBCrudPolicy:
             TableName: !Ref ComprehendJobsTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref SentimentResultsTable
+        - S3CrudPolicy:
+            BucketName: !Ref BucketName
       Events:
         SQSEvent:
           Type: SQS
@@ -259,6 +273,29 @@ Resources:
               KeyType: HASH
           Projection:
             ProjectionType: ALL
+      TimeToLiveSpecification:
+        AttributeName: ttl
+        Enabled: true
+
+  # DynamoDB table for sentiment results
+  SentimentResultsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub "${AWS::StackName}-sentiment-results"
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: keyword
+          AttributeType: S
+        - AttributeName: created_time
+          AttributeType: S
+      KeySchema:
+        - AttributeName: keyword
+          KeyType: HASH
+        - AttributeName: created_time
+          KeyType: RANGE
+      TimeToLiveSpecification:
+        AttributeName: ttl
+        Enabled: true
 
   # Lambda function to poll for job completion
   JobPollerFunction:
@@ -272,9 +309,12 @@ Resources:
         Variables:
           S3_BUCKET_NAME: !Ref BucketName
           JOBS_TABLE_NAME: !Ref ComprehendJobsTable
+          RESULTS_TABLE_NAME: !Ref SentimentResultsTable
       Policies:
         - DynamoDBCrudPolicy:
             TableName: !Ref ComprehendJobsTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref SentimentResultsTable
         - Version: "2012-10-17"
           Statement:
             - Effect: Allow

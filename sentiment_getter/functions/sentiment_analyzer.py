@@ -27,13 +27,13 @@ JOB_INPUT_PREFIX = "comprehend-jobs/input/"
 
 
 def start_sentiment_analysis_job(
-    posts: list[Post], job_name=None, keyword=None, source=None
+    post: Post, job_name=None, keyword=None, source=None
 ):
     """
-    Start an asynchronous sentiment analysis job using AWS Comprehend.
+    Start an asynchronous sentiment analysis job using AWS Comprehend for a single post.
 
     Args:
-        posts: List of Post objects to analyze
+        post: Post object to analyze
         job_name: Optional name for the job
         keyword: The keyword being analyzed
         source: The source of the data (e.g., "reddit")
@@ -41,42 +41,23 @@ def start_sentiment_analysis_job(
     Returns:
         dict: Job information including job ID and input file location
     """
-    if not posts:
-        logger.info("No posts to analyze")
-        return None
-
-    # Filter out posts with no comments
-    valid_posts = []
-    post_metadata = {}  # Maps line number to post metadata
-
-    for post in posts:
-        comment_text = post.get_comment_text()
-        if comment_text.strip():  # Only include posts with non-empty comments
-            # Store metadata for this post
-            post_metadata[len(valid_posts)] = {
-                "id": post.id,
-                "title": post.title,
-                "created_at": post.created_at.isoformat(),
-            }
-            valid_posts.append(post)
-
-    if not valid_posts:
-        logger.info("No posts with comments to analyze")
+    comment_text = post.get_comment_text()
+    if not comment_text.strip():
+        logger.info("Post has no comments to analyze")
         return None
 
     # Create a unique job name if not provided
     if not job_name:
-        # Just use a short UUID for the job name
-        job_name = f"sa-{str(uuid.uuid4())[:8]}"
+        # Include post ID in job name for better tracking
+        job_name = f"sa-{post.id[:8]}-{str(uuid.uuid4())[:8]}"
 
     # Create input file for Comprehend job
-    input_text = "\n".join([post.get_comment_text() for post in valid_posts])
     input_key = f"{JOB_INPUT_PREFIX}{job_name}.txt"
 
     # Upload input file to S3
     logger.info("Uploading input file to S3: %s", input_key)
     s3.put_object(
-        Bucket=BUCKET_NAME, Key=input_key, Body=input_text, ContentType="text/plain"
+        Bucket=BUCKET_NAME, Key=input_key, Body=comment_text, ContentType="text/plain"
     )
 
     # Start Comprehend sentiment analysis job
@@ -98,11 +79,6 @@ def start_sentiment_analysis_job(
     # Store job information in DynamoDB if table is configured
     if jobs_table:
         try:
-            # Convert post_metadata to strings for DynamoDB compatibility
-            dynamo_post_metadata = {}
-            for key, value in post_metadata.items():
-                dynamo_post_metadata[str(key)] = value
-
             jobs_table.put_item(
                 Item={
                     "job_id": job_id,
@@ -111,7 +87,11 @@ def start_sentiment_analysis_job(
                     "created_at": datetime.now().isoformat(),
                     "keyword": keyword if keyword else "unknown",
                     "source": source if source else "reddit",
-                    "post_metadata": dynamo_post_metadata,
+                    "post_metadata": {
+                        "id": post.id,
+                        "title": post.title,
+                        "created_at": post.created_at.isoformat(),
+                    },
                 }
             )
             logger.info("Stored job information in DynamoDB for job %s", job_id)
@@ -150,43 +130,35 @@ def lambda_handler(event, _):
             "body": json.dumps("No records to process"),
         }
 
-    # Collect all posts from records
-    posts = []
-    keyword = None
-    source = None
-
+    # Process each post individually
+    job_results = []
     for record in records:
         # Parse message
         data = json.loads(record["body"])
         post = Post.from_dict(data["post"])
+        keyword = data.get("keyword", "unknown")
+        source = data.get("source", "reddit")
 
-        posts.append(post)
+        # Start a sentiment analysis job for this post
+        job_info = start_sentiment_analysis_job(post, keyword=keyword, source=source)
 
-        # Use the first record's keyword and source for the job
-        if keyword is None:
-            keyword = data.get("keyword", "unknown")
-        if source is None:
-            source = data.get("source", "reddit")
+        if job_info:
+            job_results.append(job_info)
+            logger.info("Started sentiment analysis job %s for post %s", job_info["job_id"], post.id)
 
-    # Start a sentiment analysis job
-    job_info = start_sentiment_analysis_job(posts, keyword=keyword, source=source)
-
-    if not job_info:
+    if not job_results:
         logger.info("No valid posts to analyze")
         return {
             "statusCode": 200,
             "body": json.dumps("No valid posts to analyze"),
         }
 
-    logger.info("Started sentiment analysis job %s", job_info["job_id"])
-
     return {
         "statusCode": 200,
         "body": json.dumps(
             {
-                "message": "Started sentiment analysis job",
-                "job_id": job_info["job_id"],
-                "job_name": job_info["job_name"],
+                "message": f"Started {len(job_results)} sentiment analysis jobs",
+                "jobs": job_results,
             }
         ),
     }
