@@ -198,7 +198,7 @@ Resources:
         States:
           ProcessKeywords:
             Type: Map
-            InputPath: "$.tasks"
+            InputPath: $.tasks
             ItemProcessor:
               StartAt: SelectScrapers
               States:
@@ -210,107 +210,101 @@ Resources:
                         CheckReddit:
                           Type: Choice
                           Choices:
-                            - Variable: "$.source"
-                              StringEquals: "reddit"
+                            - Variable: $.source
+                              StringEquals: reddit
                               Next: RunRedditScraper
                           Default: SkipReddit
                         RunRedditScraper:
                           Type: Task
                           Resource: !GetAtt RedditScraperFunction.Arn
                           Parameters:
-                            "keyword.$": "$.keyword"
-                            "subreddits.$": "$.subreddits"
-                            "time_filter.$": "$.time_filter"
-                            "sort.$": "$.sort"
-                            "post_limit.$": "$.post_limit"
-                            "top_comments_limit.$": "$.top_comments_limit"
+                            keyword.$: $.keyword
+                            post_limit.$: $.post_limit
+                            sort.$: $.sort
+                            subreddits.$: $.subreddits
+                            time_filter.$: $.time_filter
+                            top_comments_limit.$: $.top_comments_limit
                           Retry:
                             - ErrorEquals:
-                                ["States.TaskFailed", "Lambda.ServiceException"]
+                                - States.TaskFailed
+                                - Lambda.ServiceException
+                              BackoffRate: 2
                               IntervalSeconds: 20
                               MaxAttempts: 3
-                              BackoffRate: 2.0
                           Catch:
-                            - ErrorEquals: ["States.ALL"]
-                              ResultPath: "$.redditError"
-                              Next: RedditError
+                            - ErrorEquals:
+                                - States.ALL
+                              ResultPath: $.error
+                              Next: FailReddit
                           End: true
                         SkipReddit:
                           Type: Pass
-                          Result: 
-                            status: "skipped"
-                            source: "reddit"
+                          Result:
+                            source: reddit
+                            status: skipped
                           End: true
-                        RedditError:
-                          Type: Task
-                          Resource: "arn:aws:states:::sns:publish"
-                          Parameters:
-                            TopicArn: !Ref ErrorTopic
-                            Message.$: "$.redditError"
-                            Subject: "Reddit Scraper Error"
-                          End: true
+                        FailReddit:
+                          Type: Fail
+                          ErrorPath: $.error
+                          CausePath: $.cause
                     - StartAt: CheckSteam
                       States:
                         CheckSteam:
                           Type: Choice
                           Choices:
-                            - Variable: "$.source"
-                              StringEquals: "steam"
+                            - Variable: $.source
+                              StringEquals: steam
                               Next: RunSteamScraper
                           Default: SkipSteam
                         RunSteamScraper:
                           Type: Task
                           Resource: !GetAtt SteamScraperFunction.Arn
                           Parameters:
-                            "keyword.$": "$.keyword"
-                            "time_filter.$": "$.time_filter"
-                            "sort.$": "$.sort"
-                            "post_limit.$": "$.post_limit"
+                            keyword.$: $.keyword
+                            post_limit.$: $.post_limit
+                            sort.$: $.sort
+                            time_filter.$: $.time_filter
                           Retry:
                             - ErrorEquals:
-                                ["States.TaskFailed", "Lambda.ServiceException"]
+                                - States.TaskFailed
+                                - Lambda.ServiceException
                               IntervalSeconds: 20
                               MaxAttempts: 3
-                              BackoffRate: 2.0
+                              BackoffRate: 2
                           Catch:
-                            - ErrorEquals: ["States.ALL"]
-                              ResultPath: "$.steamError"
-                              Next: SteamError
+                            - ErrorEquals:
+                                - States.ALL
+                              ResultPath: $.error
+                              Next: FailSteam
                           End: true
                         SkipSteam:
+                          End: true
+                          Result:
+                            source: steam
+                            status: skipped
                           Type: Pass
-                          Result: 
-                            status: "skipped"
-                            source: "steam"
-                          End: true
-                        SteamError:
-                          Type: Task
-                          Resource: "arn:aws:states:::sns:publish"
-                          Parameters:
-                            TopicArn: !Ref ErrorTopic
-                            Message.$: "$.steamError"
-                            Subject: "Steam Scraper Error"
-                          End: true
+                        FailSteam:
+                          Type: Fail
+                          ErrorPath: $.error
+                          CausePath: $.cause
                   End: true
             Catch:
               - ErrorEquals: ["States.ALL"]
                 ResultPath: "$.error"
                 Next: NotifyError
             End: true
-          
           NotifyError:
             Type: Task
-            Resource: "arn:aws:states:::sns:publish"
+            Resource: arn:aws:states:::sns:publish
             Parameters:
               TopicArn: !Ref ErrorTopic
-              Message.$: "$.error"
-              Subject: "Sentiment Analysis Pipeline Error"
+              Message.$: $
+              Subject: Sentiment Analysis Pipeline Error
             Next: FailExecution
-          
           FailExecution:
             Type: Fail
-            Error: "ExecutionFailed"
-            Cause: "Task execution failed, check SNS notification for details"
+            ErrorPath: $.error
+            CausePath: $.cause
       Policies:
         - LambdaInvokePolicy:
             FunctionName: !Ref RedditScraperFunction
