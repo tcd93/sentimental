@@ -26,20 +26,14 @@ def get_app_id(game_name):
         app_id: Steam app ID or None if not found
     """
     params = {"term": game_name, "l": "english", "cc": "US"}
+    response = requests.get(STEAM_API_URL, params=params, timeout=8)
+    response.raise_for_status()
+    data = response.json()
 
-    try:
-        response = requests.get(STEAM_API_URL, params=params, timeout=8)
-        response.raise_for_status()
-        data = response.json()
+    if data.get("total", 0) > 0:
+        return data["items"][0]["id"]
 
-        if data.get("total", 0) > 0:
-            return data["items"][0]["id"]
-
-        return None
-
-    except requests.exceptions.RequestException as e:
-        logger.error("Error searching for game %s: %s", game_name, str(e))
-        return None
+    return None
 
 
 def get_steam_reviews(keyword, time_filter="day", sort="top", post_limit=6):
@@ -84,33 +78,28 @@ def get_steam_reviews(keyword, time_filter="day", sort="top", post_limit=6):
         "sort": review_sort,
     }
 
-    try:
-        response = requests.get(
-            STEAM_REVIEWS_API_URL.format(app_id=app_id), params=params, timeout=10
-        )
-        response.raise_for_status()
-        data = response.json()
+    response = requests.get(
+        STEAM_REVIEWS_API_URL.format(app_id=app_id), params=params, timeout=10
+    )
+    response.raise_for_status()
+    data = response.json()
 
-        if not data.get("success", 0):
-            logger.error("Failed to get reviews for app %s", app_id)
-            return []
-
-        posts = []
-        for review in data.get("reviews", []):
-            # Convert Steam review to Post format
-            created_at = datetime.fromtimestamp(review["timestamp_created"])
-
-            post = Post(
-                id=f"steam_{review['recommendationid']}",
-                title=f"Steam Review for {keyword}",
-                body=review["review"],
-                created_at=created_at,
-                comments=[],  # Steam reviews don't have comments in the same way
-            )
-            posts.append(post)
-
-        return posts
-
-    except requests.exceptions.RequestException as e:
-        logger.error("Error fetching reviews for app %s: %s", app_id, str(e))
+    if not data.get("success", 0):
+        logger.error("Failed to get reviews for app %s", app_id)
         return []
+
+    posts = []
+    for review in data.get("reviews", []):
+        # Convert Steam review to Post format
+        created_at = datetime.fromtimestamp(review["timestamp_created"])
+
+        post = Post(
+            id=f"steam_{review['recommendationid']}",
+            title=f"Steam Review for {keyword}",
+            body=review["review"],
+            created_at=created_at,
+            comments=[],  # Steam reviews don't have comments in the same way
+        )
+        posts.append(post)
+
+    return posts
