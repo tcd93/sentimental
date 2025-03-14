@@ -1,3 +1,5 @@
 samconfig.toml
 .venv
 .aws-sam
+.env
+__pycache__

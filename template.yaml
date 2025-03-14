@@ -11,9 +11,14 @@ Parameters:
   RedditClientSecret:
     Type: String
     Description: Reddit API Client Secret
+    NoEcho: true  # Hide the value in CloudFormation console
   BucketName:
     Type: String
     Description: S3 Bucket for storing Comprehend input/output
+  OpenAIApiKey:
+    Type: String
+    Description: OpenAI API Key for ChatGPT integration
+    NoEcho: true  # Hide the value in CloudFormation console
 
 Resources:
   # S3 Bucket for Comprehend input/output
@@ -72,7 +77,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       CodeUri: sentiment_getter/
-      Handler: functions/reddit_scraper.lambda_handler
+      Handler: functions/reddit/entry.lambda_handler
       Runtime: python3.12
       Timeout: 30
       LoggingConfig:
@@ -84,6 +89,7 @@ Resources:
           REDDIT_CLIENT_ID: !Ref RedditClientId
           REDDIT_CLIENT_SECRET: !Ref RedditClientSecret
           POSTS_QUEUE_URL: !Ref PostsQueue
+          OPENAI_API_KEY: !Ref OpenAIApiKey
       Policies:
         - SQSSendMessagePolicy:
             QueueName: !GetAtt PostsQueue.QueueName
@@ -217,27 +223,66 @@ Resources:
                 "tasks": [
                   {
                     "keyword": "league of legends",
-                    "subreddits": ["all"],
                     "time_filter": "day",
-                    "sort": "hot",
-                    "post_limit": 10,
-                    "top_comments_limit": 10
+                    "sort": "top",
+                    "post_limit": 6,
+                    "top_comments_limit": 5
                   },
                   {
                     "keyword": "valorant",
-                    "subreddits": ["all"],
                     "time_filter": "day",
-                    "sort": "hot",
-                    "post_limit": 10,
-                    "top_comments_limit": 10
+                    "sort": "top",
+                    "post_limit": 6,
+                    "top_comments_limit": 5
                   },
                   {
                     "keyword": "minecraft",
-                    "subreddits": ["all"],
                     "time_filter": "day",
-                    "sort": "hot",
-                    "post_limit": 15,
-                    "top_comments_limit": 10
+                    "sort": "top",
+                    "post_limit": 6,
+                    "top_comments_limit": 5
+                  },
+                  {
+                    "keyword": "assassin's creed",
+                    "time_filter": "day",
+                    "sort": "top",
+                    "post_limit": 6,
+                    "top_comments_limit": 5
+                  },
+                  {
+                    "keyword": "cyberpunk 2077",
+                    "time_filter": "day",
+                    "sort": "top",
+                    "post_limit": 6,
+                    "top_comments_limit": 5
+                  },
+                  {
+                    "keyword": "data engineer",
+                    "time_filter": "day",
+                    "sort": "top",
+                    "post_limit": 6,
+                    "top_comments_limit": 5
+                  },
+                  {
+                    "keyword": "data analyst",
+                    "time_filter": "day",
+                    "sort": "top",
+                    "post_limit": 6,
+                    "top_comments_limit": 5
+                  },
+                  {
+                    "keyword": "artificial intelligence",
+                    "time_filter": "day",
+                    "sort": "top",
+                    "post_limit": 6,
+                    "top_comments_limit": 5
+                  },
+                  {
+                    "keyword": "machine learning",
+                    "time_filter": "day",
+                    "sort": "top",
+                    "post_limit": 6,
+                    "top_comments_limit": 5
                   }
                 ]
               }

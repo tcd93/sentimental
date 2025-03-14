@@ -9,5 +9,7 @@ capabilities = "CAPABILITY_IAM"
 parameter_overrides = [
     "RedditClientId=your-client-id",
     "RedditClientSecret=your-client-secret",
-    "BucketName=your-bucket-name"
+    "BucketName=your-bucket-name",
+    # if you have an OpenAI key, set it here to improve keyword suggestion
+    "OpenAIApiKey=your-openai-key"
 ]
