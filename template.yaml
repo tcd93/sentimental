@@ -66,6 +66,12 @@ Resources:
       RetentionPolicy: Retain
 
   # Log Groups with 1 week retention
+  SteamScraperLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/${AWS::StackName}-steam-scraper"
+      RetentionInDays: 7
+
   RedditScraperLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
@@ -73,6 +79,24 @@ Resources:
       RetentionInDays: 7
 
   # Lambda Functions
+  SteamScraperFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: sentiment_getter/
+      Handler: functions/steam/entry.lambda_handler
+      Runtime: python3.12
+      Timeout: 30
+      LoggingConfig:
+        LogGroup: !Ref SteamScraperLogGroup
+      Layers:
+        - !Ref PythonDependenciesLayer
+      Environment:
+        Variables:
+          POSTS_QUEUE_URL: !Ref PostsQueue
+      Policies:
+        - SQSSendMessagePolicy:
+            QueueName: !GetAtt PostsQueue.QueueName
+
   RedditScraperFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -171,44 +195,92 @@ Resources:
             Type: Map
             InputPath: "$.tasks"
             ItemProcessor:
-              StartAt: ScrapeReddit
+              StartAt: DetermineSource
               States:
-                ScrapeReddit:
-                  Type: Task
-                  Resource: !GetAtt RedditScraperFunction.Arn
-                  Parameters:
-                    "keyword.$": "$.keyword"
-                    "subreddits.$": "$.subreddits"
-                    "time_filter.$": "$.time_filter"
-                    "sort.$": "$.sort"
-                    "post_limit.$": "$.post_limit"
+                DetermineSource:
+                  Type: Pass
+                  Next: SelectScrapers
+                
+                SelectScrapers:
+                  Type: Parallel
+                  Branches:
+                    - StartAt: CheckReddit
+                      States:
+                        CheckReddit:
+                          Type: Choice
+                          Choices:
+                            - Variable: "$.source"
+                              StringEquals: "reddit"
+                              Next: RunRedditScraper
+                          Default: SkipReddit
+                        RunRedditScraper:
+                          Type: Task
+                          Resource: !GetAtt RedditScraperFunction.Arn
+                          Parameters:
+                            "keyword.$": "$.keyword"
+                            "subreddits.$": "$.subreddits"
+                            "time_filter.$": "$.time_filter"
+                            "sort.$": "$.sort"
+                            "post_limit.$": "$.post_limit"
+                            "top_comments_limit.$": "$.top_comments_limit"
+                          End: true
+                        SkipReddit:
+                          Type: Pass
+                          Result: "Reddit scraper skipped"
+                          End: true
+                    - StartAt: CheckSteam
+                      States:
+                        CheckSteam:
+                          Type: Choice
+                          Choices:
+                            - Variable: "$.source"
+                              StringEquals: "steam"
+                              Next: RunSteamScraper
+                          Default: SkipSteam
+                        RunSteamScraper:
+                          Type: Task
+                          Resource: !GetAtt SteamScraperFunction.Arn
+                          Parameters:
+                            "keyword.$": "$.keyword"
+                            "time_filter.$": "$.time_filter"
+                            "sort.$": "$.sort"
+                            "post_limit.$": "$.post_limit"
+                          End: true
+                        SkipSteam:
+                          Type: Pass
+                          Result: "Steam scraper skipped"
+                          End: true
                   Retry:
                     - ErrorEquals:
                         ["States.TaskFailed", "Lambda.ServiceException"]
                       IntervalSeconds: 20
                       MaxAttempts: 3
                       BackoffRate: 2.0
-                  Catch:
-                    - ErrorEquals: ["States.ALL"]
-                      ResultPath: "$.error"
-                      Next: NotifyError
                   End: true
-                NotifyError:
-                  Type: Task
-                  Resource: "arn:aws:states:::sns:publish"
-                  Parameters:
-                    TopicArn: !Ref ErrorTopic
-                    Message.$: "$.error"
-                    Subject: "Sentiment Analysis Pipeline Error"
-                  Next: FailExecution
-                FailExecution:
-                  Type: Fail
-                  Error: "ExecutionFailed"
-                  Cause: "Task execution failed, check SNS notification for details"
+            Catch:
+              - ErrorEquals: ["States.ALL"]
+                ResultPath: "$.error"
+                Next: NotifyError
             End: true
+          
+          NotifyError:
+            Type: Task
+            Resource: "arn:aws:states:::sns:publish"
+            Parameters:
+              TopicArn: !Ref ErrorTopic
+              Message.$: "$.error"
+              Subject: "Sentiment Analysis Pipeline Error"
+            Next: FailExecution
+          
+          FailExecution:
+            Type: Fail
+            Error: "ExecutionFailed"
+            Cause: "Task execution failed, check SNS notification for details"
       Policies:
         - LambdaInvokePolicy:
             FunctionName: !Ref RedditScraperFunction
+        - LambdaInvokePolicy:
+            FunctionName: !Ref SteamScraperFunction
         - SNSPublishMessagePolicy:
             TopicName: !GetAtt ErrorTopic.TopicName
         - CloudWatchLogsFullAccess
@@ -222,76 +294,20 @@ Resources:
               {
                 "tasks": [
                   {
-                    "keyword": "league of legends",
-                    "time_filter": "day",
-                    "subreddits": [],
-                    "sort": "top",
-                    "post_limit": 6,
-                    "top_comments_limit": 5
-                  },
-                  {
-                    "keyword": "valorant",
-                    "time_filter": "day",
-                    "subreddits": [],
-                    "sort": "top",
-                    "post_limit": 6,
-                    "top_comments_limit": 5
-                  },
-                  {
-                    "keyword": "minecraft",
-                    "time_filter": "day",
-                    "subreddits": [],
-                    "sort": "top",
-                    "post_limit": 6,
-                    "top_comments_limit": 5
-                  },
-                  {
                     "keyword": "assassin's creed",
                     "time_filter": "day",
                     "subreddits": [],
                     "sort": "top",
                     "post_limit": 6,
-                    "top_comments_limit": 5
+                    "top_comments_limit": 5,
+                    "source": "reddit"
                   },
                   {
-                    "keyword": "cyberpunk 2077",
+                    "keyword": "assassin's creed",
                     "time_filter": "day",
-                    "subreddits": [],
                     "sort": "top",
                     "post_limit": 6,
-                    "top_comments_limit": 5
-                  },
-                  {
-                    "keyword": "data engineer",
-                    "time_filter": "day",
-                    "subreddits": [],
-                    "sort": "top",
-                    "post_limit": 6,
-                    "top_comments_limit": 5
-                  },
-                  {
-                    "keyword": "data analyst",
-                    "time_filter": "day",
-                    "subreddits": [],
-                    "sort": "top",
-                    "post_limit": 6,
-                    "top_comments_limit": 5
-                  },
-                  {
-                    "keyword": "artificial intelligence",
-                    "time_filter": "day",
-                    "subreddits": [],
-                    "sort": "top",
-                    "post_limit": 6,
-                    "top_comments_limit": 5
-                  },
-                  {
-                    "keyword": "machine learning",
-                    "time_filter": "day",
-                    "subreddits": [],
-                    "sort": "top",
-                    "post_limit": 6,
-                    "top_comments_limit": 5
+                    "source": "steam"
                   }
                 ]
               }
