@@ -200,12 +200,8 @@ Resources:
             Type: Map
             InputPath: "$.tasks"
             ItemProcessor:
-              StartAt: DetermineSource
+              StartAt: SelectScrapers
               States:
-                DetermineSource:
-                  Type: Pass
-                  Next: SelectScrapers
-                
                 SelectScrapers:
                   Type: Parallel
                   Branches:
@@ -270,7 +266,6 @@ Resources:
                             "time_filter.$": "$.time_filter"
                             "sort.$": "$.sort"
                             "post_limit.$": "$.post_limit"
-                            "top_comments_limit.$": "$.top_comments_limit"
                           Retry:
                             - ErrorEquals:
                                 ["States.TaskFailed", "Lambda.ServiceException"]

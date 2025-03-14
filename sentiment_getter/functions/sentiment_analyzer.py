@@ -5,7 +5,6 @@ Lambda function to analyze sentiment of posts and send results to storage queue.
 import json
 import os
 import logging
-import uuid
 from datetime import datetime
 import boto3
 from model.post import Post
