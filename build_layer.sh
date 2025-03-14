@@ -2,12 +2,13 @@
 set -e
 
 # Create a temporary directory for building the layer
+rm -rf temp_layer
 mkdir -p temp_layer/python
 
 # Install packages into the temporary directory
 pip install -r layers/requirements.txt -t temp_layer/python
 
-# Create the zip file
+# Create the tar.gz file
 cd temp_layer
 zip -r ../layers/python-api-packages.zip .
 cd ..

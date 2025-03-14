@@ -3,3 +3,4 @@ samconfig.toml
 .aws-sam
 .env
 __pycache__
+temp_layer

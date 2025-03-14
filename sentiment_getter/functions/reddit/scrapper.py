@@ -1,3 +1,8 @@
+"""
+This module contains the Reddit scrapper.
+It is used to scrape Reddit posts and comments for a given keyword.
+"""
+
 from datetime import datetime
 import os
 import logging
@@ -28,10 +33,12 @@ def get_openai_client():
     if not openai_set():
         raise ValueError("OPENAI_API_KEY is not set")
     return OpenAI(api_key=os.environ["OPENAI_API_KEY"])
-    
+
+
 def openai_set() -> bool:
     """Check if the OpenAI API key is set."""
     return os.environ["OPENAI_API_KEY"] is not None
+
 
 def get_subreddits_from_chatgpt(openai: OpenAI, keyword: str) -> list[str]:
     """Get relevant subreddits for a keyword using ChatGPT.
@@ -83,7 +90,8 @@ def get_reddit_posts(**kwargs) -> list[Post]:
 
     Args:
         kwargs (dict[str, any]): Dictionary containing:
-            subreddits (list[str]): List of subreddit names to search (without 'r/' prefix). If empty, ChatGPT will suggest relevant subreddits.
+            subreddits (list[str]): List of subreddit names to search (without 'r/' prefix). 
+                                    If empty, ChatGPT will suggest relevant subreddits.
             keyword (str): Search term to find posts
             sort (str): How to sort results ('relevance', 'hot', 'top', 'new', 'comments')
             time_filter (str): Time window to search ('all', 'day', 'hour', 'month', 'week', 'year')

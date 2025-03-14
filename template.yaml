@@ -224,6 +224,7 @@ Resources:
                   {
                     "keyword": "league of legends",
                     "time_filter": "day",
+                    "subreddits": [],
                     "sort": "top",
                     "post_limit": 6,
                     "top_comments_limit": 5
@@ -231,6 +232,7 @@ Resources:
                   {
                     "keyword": "valorant",
                     "time_filter": "day",
+                    "subreddits": [],
                     "sort": "top",
                     "post_limit": 6,
                     "top_comments_limit": 5
@@ -238,6 +240,7 @@ Resources:
                   {
                     "keyword": "minecraft",
                     "time_filter": "day",
+                    "subreddits": [],
                     "sort": "top",
                     "post_limit": 6,
                     "top_comments_limit": 5
@@ -245,6 +248,7 @@ Resources:
                   {
                     "keyword": "assassin's creed",
                     "time_filter": "day",
+                    "subreddits": [],
                     "sort": "top",
                     "post_limit": 6,
                     "top_comments_limit": 5
@@ -252,6 +256,7 @@ Resources:
                   {
                     "keyword": "cyberpunk 2077",
                     "time_filter": "day",
+                    "subreddits": [],
                     "sort": "top",
                     "post_limit": 6,
                     "top_comments_limit": 5
@@ -259,6 +264,7 @@ Resources:
                   {
                     "keyword": "data engineer",
                     "time_filter": "day",
+                    "subreddits": [],
                     "sort": "top",
                     "post_limit": 6,
                     "top_comments_limit": 5
@@ -266,6 +272,7 @@ Resources:
                   {
                     "keyword": "data analyst",
                     "time_filter": "day",
+                    "subreddits": [],
                     "sort": "top",
                     "post_limit": 6,
                     "top_comments_limit": 5
@@ -273,6 +280,7 @@ Resources:
                   {
                     "keyword": "artificial intelligence",
                     "time_filter": "day",
+                    "subreddits": [],
                     "sort": "top",
                     "post_limit": 6,
                     "top_comments_limit": 5
@@ -280,6 +288,7 @@ Resources:
                   {
                     "keyword": "machine learning",
                     "time_filter": "day",
+                    "subreddits": [],
                     "sort": "top",
                     "post_limit": 6,
                     "top_comments_limit": 5

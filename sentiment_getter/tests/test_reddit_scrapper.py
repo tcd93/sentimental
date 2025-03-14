@@ -13,6 +13,7 @@ from model.post import Post
 
 class TestRedditScrapper(unittest.TestCase):
     """Unit tests for Reddit scrapper functionality."""
+
     def setUp(self):
         # Load environment variables from .env file
         load_dotenv()
@@ -71,7 +72,7 @@ class TestRedditScrapper(unittest.TestCase):
         )
         # check if result is a list and has 3 elements
         self.assertIsInstance(result, list)
-        # well if r/askreddit returns less than 3 posts for a week, then you're probably 
+        # well if r/askreddit returns less than 3 posts for a week, then you're probably
         # reading this code in 2077
         self.assertEqual(len(result), 3)
         # check if all elements are Post objects
