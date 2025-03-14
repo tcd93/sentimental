@@ -133,6 +133,11 @@ Resources:
       Timeout: 60
       LoggingConfig:
         LogGroup: !Ref SentimentAnalyzerLogGroup
+      EventInvokeConfig:
+        DestinationConfig:
+          OnFailure:
+            Type: SNS
+            Destination: !Ref ErrorTopic
       Layers:
         - !Ref PythonDependenciesLayer
       Environment:
@@ -437,6 +442,11 @@ Resources:
       Timeout: 60
       LoggingConfig:
         LogGroup: !Ref JobPollerLogGroup
+      EventInvokeConfig:
+        DestinationConfig:
+          OnFailure:
+            Type: SNS
+            Destination: !Ref ErrorTopic
       Environment:
         Variables:
           S3_BUCKET_NAME: !Ref BucketName
