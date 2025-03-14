@@ -223,10 +223,30 @@ Resources:
                             "sort.$": "$.sort"
                             "post_limit.$": "$.post_limit"
                             "top_comments_limit.$": "$.top_comments_limit"
+                          Retry:
+                            - ErrorEquals:
+                                ["States.TaskFailed", "Lambda.ServiceException"]
+                              IntervalSeconds: 20
+                              MaxAttempts: 3
+                              BackoffRate: 2.0
+                          Catch:
+                            - ErrorEquals: ["States.ALL"]
+                              ResultPath: "$.redditError"
+                              Next: RedditError
                           End: true
                         SkipReddit:
                           Type: Pass
-                          Result: "Reddit scraper skipped"
+                          Result: 
+                            status: "skipped"
+                            source: "reddit"
+                          End: true
+                        RedditError:
+                          Type: Task
+                          Resource: "arn:aws:states:::sns:publish"
+                          Parameters:
+                            TopicArn: !Ref ErrorTopic
+                            Message.$: "$.redditError"
+                            Subject: "Reddit Scraper Error"
                           End: true
                     - StartAt: CheckSteam
                       States:
@@ -245,17 +265,32 @@ Resources:
                             "time_filter.$": "$.time_filter"
                             "sort.$": "$.sort"
                             "post_limit.$": "$.post_limit"
+                            "top_comments_limit.$": "$.top_comments_limit"
+                          Retry:
+                            - ErrorEquals:
+                                ["States.TaskFailed", "Lambda.ServiceException"]
+                              IntervalSeconds: 20
+                              MaxAttempts: 3
+                              BackoffRate: 2.0
+                          Catch:
+                            - ErrorEquals: ["States.ALL"]
+                              ResultPath: "$.steamError"
+                              Next: SteamError
                           End: true
                         SkipSteam:
                           Type: Pass
-                          Result: "Steam scraper skipped"
+                          Result: 
+                            status: "skipped"
+                            source: "steam"
                           End: true
-                  Retry:
-                    - ErrorEquals:
-                        ["States.TaskFailed", "Lambda.ServiceException"]
-                      IntervalSeconds: 20
-                      MaxAttempts: 3
-                      BackoffRate: 2.0
+                        SteamError:
+                          Type: Task
+                          Resource: "arn:aws:states:::sns:publish"
+                          Parameters:
+                            TopicArn: !Ref ErrorTopic
+                            Message.$: "$.steamError"
+                            Subject: "Steam Scraper Error"
+                          End: true
                   End: true
             Catch:
               - ErrorEquals: ["States.ALL"]
