@@ -48,7 +48,7 @@ def start_sentiment_analysis_job(
     # Create a unique job name if not provided
     if not job_name:
         # Include post ID in job name for better tracking
-        job_name = f"sa-{post.id[:8]}-{str(uuid.uuid4())[:8]}"
+        job_name = f"{post.id[:12]}"
 
     # Create input file for Comprehend job
     input_key = f"{JOB_INPUT_PREFIX}{job_name}.txt"

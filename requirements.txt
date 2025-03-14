@@ -1,4 +1,0 @@
-boto3==1.34.0
-praw==7.8.1
-openai==1.12.0
-python-dotenv==1.0.1 
