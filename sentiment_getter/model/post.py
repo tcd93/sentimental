@@ -18,8 +18,10 @@ class Post:
     comments: list[str]
 
     def get_text(self) -> str:
-        """Return all texts joined as a single string."""
-        return self.title + "\n" + self.body + "\n" + "\n".join(self.comments)
+        """Get the text of the post and comments (with limit)"""
+        # Limit each comment to 300 words
+        truncated_comments = [' '.join(comment.split()[:300]) for comment in self.comments]
+        return self.title + "\n" + self.body[:500] + "\n" + "\n".join(truncated_comments)
 
     def to_dict(self) -> dict:
         """Convert Post to dictionary for serialization."""
