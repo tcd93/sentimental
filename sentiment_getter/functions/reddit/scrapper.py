@@ -134,11 +134,13 @@ def get_reddit_posts(**kwargs) -> list[Post]:
             posts.append(
                 Post(
                     id=post.id,
+                    keyword=keyword,
+                    source="reddit",
                     title=post.title,
                     created_at=datetime.fromtimestamp(post.created_utc),
                     body=post.selftext,
                     comments=list(top_comments),
-                    post_url=f"https://reddit.com{post.permalink}"
+                    post_url=f"https://reddit.com{post.permalink}",
                 )
             )
 

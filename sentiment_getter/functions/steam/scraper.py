@@ -36,7 +36,7 @@ def get_app_id(game_name):
     return None
 
 
-def get_steam_reviews(keyword, time_filter="day", sort="top", post_limit=6):
+def get_steam_reviews(keyword, time_filter="day", sort="top", post_limit=6) -> list[Post]:
     """
     Get Steam reviews for a game.
 
@@ -95,6 +95,8 @@ def get_steam_reviews(keyword, time_filter="day", sort="top", post_limit=6):
 
         post = Post(
             id=f"steam_{review['recommendationid']}",
+            keyword=keyword,
+            source="steam",
             title=f"Steam Review for {keyword}",
             body=review["review"],
             created_at=created_at,

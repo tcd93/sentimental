@@ -39,20 +39,6 @@ Resources:
             Status: Enabled
             ExpirationInDays: 60
 
-  # SQS Queues
-  PostsDLQ:
-    Type: AWS::SQS::Queue
-    Properties:
-      MessageRetentionPeriod: 1209600 # 14 days
-
-  PostsQueue:
-    Type: AWS::SQS::Queue
-    Properties:
-      VisibilityTimeout: 300 # 5 minutes
-      RedrivePolicy:
-        deadLetterTargetArn: !GetAtt PostsDLQ.Arn
-        maxReceiveCount: 3 # Move to DLQ after 3 failed attempts
-
   # SNS Topic for Error Notifications
   ErrorTopic:
     Type: AWS::SNS::Topic
@@ -97,12 +83,14 @@ Resources:
         LogGroup: !Ref SteamScraperLogGroup
       Layers:
         - !Ref PythonDependenciesLayer
-      Environment:
-        Variables:
-          POSTS_QUEUE_URL: !Ref PostsQueue
-      Policies:
-        - SQSSendMessagePolicy:
-            QueueName: !GetAtt PostsQueue.QueueName
+      EventInvokeConfig:
+        DestinationConfig:
+          OnSuccess:
+            Type: Lambda
+            Destination: !GetAtt SentimentJobCreatorFunction.Arn
+          OnFailure:
+            Type: SNS
+            Destination: !Ref ErrorTopic
 
   RedditScraperFunction:
     Type: AWS::Serverless::Function
@@ -119,65 +107,15 @@ Resources:
         Variables:
           REDDIT_CLIENT_ID: !Ref RedditClientId
           REDDIT_CLIENT_SECRET: !Ref RedditClientSecret
-          POSTS_QUEUE_URL: !Ref PostsQueue
           OPENAI_API_KEY: !Ref OpenAIApiKey
-      Policies:
-        - SQSSendMessagePolicy:
-            QueueName: !GetAtt PostsQueue.QueueName
-
-  SentimentAnalyzerLogGroup:
-    Type: AWS::Logs::LogGroup
-    Properties:
-      LogGroupName: !Sub "/aws/lambda/${AWS::StackName}-sentiment-analyzer"
-      RetentionInDays: 7
-
-  SentimentAnalyzerFunction:
-    Type: AWS::Serverless::Function
-    Properties:
-      CodeUri: sentiment_getter/
-      Handler: functions/sentiment_analyzer.lambda_handler
-      Runtime: python3.12
-      Timeout: 60
-      LoggingConfig:
-        LogGroup: !Ref SentimentAnalyzerLogGroup
       EventInvokeConfig:
         DestinationConfig:
+          OnSuccess:
+            Type: Lambda
+            Destination: !GetAtt SentimentJobCreatorFunction.Arn
           OnFailure:
             Type: SNS
             Destination: !Ref ErrorTopic
-      Layers:
-        - !Ref PythonDependenciesLayer
-      Environment:
-        Variables:
-          S3_BUCKET_NAME: !Ref BucketName
-          COMPREHEND_ROLE_ARN: !GetAtt ComprehendServiceRole.Arn
-          JOBS_TABLE_NAME: !Ref ComprehendJobsTable
-      Policies:
-        - Version: "2012-10-17"
-          Statement:
-            - Effect: Allow
-              Action:
-                - "comprehend:*"
-              Resource: "*"
-            - Effect: Allow
-              Action:
-                - iam:PassRole
-              Resource: !GetAtt ComprehendServiceRole.Arn
-              Condition:
-                StringEquals:
-                  "iam:PassedToService": "comprehend.amazonaws.com"
-        - SQSPollerPolicy:
-            QueueName: !GetAtt PostsQueue.QueueName
-        - DynamoDBCrudPolicy:
-            TableName: !Ref ComprehendJobsTable
-        - S3CrudPolicy:
-            BucketName: !Ref BucketName
-      Events:
-        SQSEvent:
-          Type: SQS
-          Properties:
-            Queue: !GetAtt PostsQueue.Arn
-            BatchSize: 10
 
   # CloudWatch Log Group for Step Functions
   StepFunctionsLogGroup:
@@ -221,39 +159,10 @@ Resources:
                         RunRedditScraper:
                           Type: Task
                           Resource: !GetAtt RedditScraperFunction.Arn
-                          Parameters:
-                            keyword.$: $.keyword
-                            post_limit.$: $.post_limit
-                            sort.$: $.sort
-                            subreddits.$: $.subreddits
-                            time_filter.$: $.time_filter
-                            top_comments_limit.$: $.top_comments_limit
-                          Retry:
-                            - ErrorEquals:
-                                - States.TaskFailed
-                                - Lambda.ServiceException
-                              BackoffRate: 2
-                              IntervalSeconds: 20
-                              MaxAttempts: 3
-                          Catch:
-                            - ErrorEquals:
-                                - States.ALL
-                              ResultPath: $.error
-                              Next: NotifyRedditError
                           End: true
                         SkipReddit:
                           Type: Pass
-                          Result:
-                            source: reddit
-                            status: skipped
-                          End: true
-                        NotifyRedditError:
-                          Type: Task
-                          Resource: arn:aws:states:::sns:publish
-                          Parameters:
-                            TopicArn: !Ref ErrorTopic
-                            Message.$: $
-                            Subject: Sentiment Analysis Pipeline Error
+                          Result: []
                           End: true
                     - StartAt: CheckSteam
                       States:
@@ -267,61 +176,24 @@ Resources:
                         RunSteamScraper:
                           Type: Task
                           Resource: !GetAtt SteamScraperFunction.Arn
-                          Parameters:
-                            keyword.$: $.keyword
-                            post_limit.$: $.post_limit
-                            sort.$: $.sort
-                            time_filter.$: $.time_filter
-                          Retry:
-                            - ErrorEquals:
-                                - States.TaskFailed
-                                - Lambda.ServiceException
-                              IntervalSeconds: 20
-                              MaxAttempts: 3
-                              BackoffRate: 2
-                          Catch:
-                            - ErrorEquals:
-                                - States.ALL
-                              ResultPath: $.error
-                              Next: NotifySteamError
                           End: true
                         SkipSteam:
-                          End: true
-                          Result:
-                            source: steam
-                            status: skipped
                           Type: Pass
-                        NotifySteamError:
-                          Type: Task
-                          Resource: arn:aws:states:::sns:publish
-                          Parameters:
-                            TopicArn: !Ref ErrorTopic
-                            Message.$: $
-                            Subject: Sentiment Analysis Pipeline Error
+                          Result: []
                           End: true
+                  Next: CreateSentimentJob
+                CreateSentimentJob:
+                  Type: Task
+                  Resource: !GetAtt SentimentJobCreatorFunction.Arn
                   End: true
-            Catch:
-              - ErrorEquals: ["States.ALL"]
-                ResultPath: "$.error"
-                Next: NotifyError
             End: true
-          NotifyError:
-            Type: Task
-            Resource: arn:aws:states:::sns:publish
-            Parameters:
-              TopicArn: !Ref ErrorTopic
-              Message.$: $
-              Subject: Sentiment Analysis Pipeline Error
-            Next: FailExecution
-          FailExecution:
-            Type: Fail
-            ErrorPath: $.error
-            CausePath: $.cause
       Policies:
         - LambdaInvokePolicy:
             FunctionName: !Ref RedditScraperFunction
         - LambdaInvokePolicy:
             FunctionName: !Ref SteamScraperFunction
+        - LambdaInvokePolicy:
+            FunctionName: !Ref SentimentJobCreatorFunction
         - SNSPublishMessagePolicy:
             TopicName: !GetAtt ErrorTopic.TopicName
         - CloudWatchLogsFullAccess
@@ -453,6 +325,52 @@ Resources:
           Properties:
             Schedule: rate(1 minute)
 
+  # Add Log Group for Sentiment Job Creator
+  SentimentJobCreatorLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/${AWS::StackName}-sentiment-job-creator"
+      RetentionInDays: 7
+
+  # Update Sentiment Job Creator Function
+  SentimentJobCreatorFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: sentiment_getter/
+      Handler: functions/sentiment_job_creator.lambda_handler
+      Runtime: python3.12
+      Timeout: 60
+      LoggingConfig:
+        LogGroup: !Ref SentimentJobCreatorLogGroup
+      Environment:
+        Variables:
+          S3_BUCKET_NAME: !Ref BucketName
+          COMPREHEND_ROLE_ARN: !GetAtt ComprehendServiceRole.Arn
+          JOBS_TABLE_NAME: !Ref ComprehendJobsTable
+      EventInvokeConfig:
+        DestinationConfig:
+          OnFailure:
+            Type: SNS
+            Destination: !Ref ErrorTopic
+      Policies:
+        - Version: "2012-10-17"
+          Statement:
+            - Effect: Allow
+              Action:
+                - "comprehend:*"
+              Resource: "*"
+            - Effect: Allow
+              Action:
+                - iam:PassRole
+              Resource: !GetAtt ComprehendServiceRole.Arn
+              Condition:
+                StringEquals:
+                  "iam:PassedToService": "comprehend.amazonaws.com"
+        - DynamoDBCrudPolicy:
+            TableName: !Ref ComprehendJobsTable
+        - S3CrudPolicy:
+            BucketName: !Ref BucketName
+
 Outputs:
   StateMachineArn:
     Description: "State machine ARN"
@@ -460,9 +378,6 @@ Outputs:
   ScraperFunctionArn:
     Description: "Reddit scraper function ARN"
     Value: !GetAtt RedditScraperFunction.Arn
-  AnalyzerFunctionArn:
-    Description: "Sentiment analyzer function ARN"
-    Value: !GetAtt SentimentAnalyzerFunction.Arn
   ErrorTopicArn:
     Description: "Error notification topic ARN"
     Value: !Ref ErrorTopic

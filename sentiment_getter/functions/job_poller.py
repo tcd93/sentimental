@@ -13,6 +13,8 @@ from botocore.exceptions import ClientError
 from supabase import create_client, Client
 from postgrest import APIError
 
+from model.post import Post
+
 # Configure logging
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -33,79 +35,7 @@ JOB_OUTPUT_PREFIX = "comprehend-jobs/output/"
 # Initialize Supabase client
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-def update_job_status(job_id: str, status: str, version: int) -> tuple[bool, int]:
-    """Update job status with optimistic locking"""
-    try:
-        # Calculate TTL for 30 days from now
-        ttl = int((datetime.now() + timedelta(days=30)).timestamp())
 
-        # If version is 0, it means this is the first update
-        if version == 0:
-            response = jobs_table.update_item(
-                Key={"job_id": job_id},
-                UpdateExpression="SET #status = :status, version = :version, #ttl = :ttl",
-                ConditionExpression="attribute_not_exists(version) OR version = :current_version",
-                ExpressionAttributeNames={"#status": "status", "#ttl": "ttl"},
-                ExpressionAttributeValues={
-                    ":status": status,
-                    ":version": 1,
-                    ":current_version": 0,
-                    ":ttl": ttl,
-                },
-                ReturnValues="ALL_NEW",
-            )
-        else:
-            response = jobs_table.update_item(
-                Key={"job_id": job_id},
-                UpdateExpression="SET #status = :status, version = :version, #ttl = :ttl",
-                ConditionExpression="version = :current_version",
-                ExpressionAttributeNames={"#status": "status", "#ttl": "ttl"},
-                ExpressionAttributeValues={
-                    ":status": status,
-                    ":version": version + 1,
-                    ":current_version": version,
-                    ":ttl": ttl,
-                },
-                ReturnValues="ALL_NEW",
-            )
-        return True, response["Attributes"]["version"]
-    except ClientError as e:
-        logger.error("Error updating job %s: %s", job_id, str(e))
-        return False, version
-
-
-def store_results_in_supabase(results):
-    """Store sentiment results in Supabase using upsert to handle duplicates"""
-    if not results:
-        return
-
-    records = [
-        {
-            "keyword": result["keyword"],
-            "created_time": result["created_time"],
-            "source": result["source"],
-            "post_id": result["post_id"],
-            "post_url": result["post_url"],
-            "sentiment": result["sentiment"],
-            "sentiment_score_mixed": float(result["sentiment_scores"]["Mixed"]),
-            "sentiment_score_positive": float(result["sentiment_scores"]["Positive"]),
-            "sentiment_score_neutral": float(result["sentiment_scores"]["Neutral"]),
-            "sentiment_score_negative": float(result["sentiment_scores"]["Negative"]),
-            "job_id": result["job_id"]
-        }
-        for result in results
-    ]
-
-    try:
-        # Upsert records using Supabase client
-        data = (supabase.table("sentiment_results")
-                .upsert(records, on_conflict="post_id,job_id")
-                .execute())
-        logger.info("Successfully upserted %d results in Supabase", len(records))
-        return data
-    except APIError as e:
-        logger.error("Failed to store results in Supabase: %s", str(e))
-        raise
 
 
 def lambda_handler(_, __):
@@ -180,18 +110,17 @@ def lambda_handler(_, __):
 def process_completed_job(job, current_version):
     """Process a completed Comprehend job"""
     job_id = job["job_id"]
-    keyword = job["keyword"]
-    source = job["source"]
-    post_metadata = job["post_metadata"]
+    posts = job["posts"]
+
+    # Assert that job["posts"] is a list
+    assert isinstance(posts, list), "job['posts'] must be a list"
 
     logger.info("Processing completed job %s", job_id)
-    # Get job details to get the output location
     job_details = comprehend.describe_sentiment_detection_job(JobId=job_id)
     output_s3_uri = job_details["SentimentDetectionJobProperties"]["OutputDataConfig"][
         "S3Uri"
     ]
 
-    # Extract the key from the S3 URI (remove 's3://bucket-name/' prefix)
     output_key = output_s3_uri.replace(f"s3://{BUCKET_NAME}/", "")
     logger.info("Retrieving output file from: %s", output_key)
 
@@ -211,21 +140,27 @@ def process_completed_job(job, current_version):
                     lines = content.strip().split("\n")
 
                     # Process each line (one result per line)
-                    for line in lines:
+                    for line_number, line in enumerate(lines):
                         result = json.loads(line)
-                        logger.info("Raw sentiment result: %s", json.dumps(result))
+                        # logger.info("Raw sentiment result: %s", json.dumps(result))
+
+                        # find the post metadata for the result, which is from the line number
+                        post = Post.from_json(posts[line_number])
+                        logger.debug("Post: %s", post)
+                        logger.debug("Line: %s", line)
 
                         # Prepare result data
                         result_data = {
-                            "keyword": keyword,
-                            "created_time": post_metadata.get("created_at"),
-                            "source": source,
-                            "post_id": post_metadata["id"],
-                            "post_url": post_metadata.get("post_url", ""),
+                            "keyword": post.keyword,
+                            "created_time": post.created_at.isoformat(),
+                            "source": post.source,
+                            "post_id": post.id,
+                            "post_url": post.post_url,
                             "sentiment": result["Sentiment"],
                             "sentiment_scores": result["SentimentScore"],
                             "job_id": job_id,
                         }
+                        # logger.info("Result data: %s", json.dumps(result_data))
                         results_to_store.append(result_data)
 
     store_results_in_supabase(results_to_store)
@@ -233,3 +168,78 @@ def process_completed_job(job, current_version):
     success, current_version = update_job_status(job_id, "PROCESSED", current_version)
     if not success:
         logger.error("Failed to update job %s status - version mismatch", job_id)
+
+def update_job_status(job_id: str, status: str, version: int) -> tuple[bool, int]:
+    """Update job status with optimistic locking"""
+    try:
+        # Calculate TTL for 30 days from now
+        ttl = int((datetime.now() + timedelta(days=30)).timestamp())
+
+        # If version is 0, it means this is the first update
+        if version == 0:
+            response = jobs_table.update_item(
+                Key={"job_id": job_id},
+                UpdateExpression="SET #status = :status, version = :version, #ttl = :ttl",
+                ConditionExpression="attribute_not_exists(version) OR version = :current_version",
+                ExpressionAttributeNames={"#status": "status", "#ttl": "ttl"},
+                ExpressionAttributeValues={
+                    ":status": status,
+                    ":version": 1,
+                    ":current_version": 0,
+                    ":ttl": ttl,
+                },
+                ReturnValues="ALL_NEW",
+            )
+        else:
+            response = jobs_table.update_item(
+                Key={"job_id": job_id},
+                UpdateExpression="SET #status = :status, version = :version, #ttl = :ttl",
+                ConditionExpression="version = :current_version",
+                ExpressionAttributeNames={"#status": "status", "#ttl": "ttl"},
+                ExpressionAttributeValues={
+                    ":status": status,
+                    ":version": version + 1,
+                    ":current_version": version,
+                    ":ttl": ttl,
+                },
+                ReturnValues="ALL_NEW",
+            )
+        return True, response["Attributes"]["version"]
+    except ClientError as e:
+        logger.error("Error updating job %s: %s", job_id, str(e))
+        return False, version
+
+def store_results_in_supabase(results):
+    """Store sentiment results in Supabase using upsert to handle duplicates"""
+    if not results:
+        return
+
+    records = [
+        {
+            "keyword": result["keyword"],
+            "created_time": result["created_time"],
+            "source": result["source"],
+            "post_id": result["post_id"],
+            "post_url": result["post_url"],
+            "sentiment": result["sentiment"],
+            "sentiment_score_mixed": float(result["sentiment_scores"]["Mixed"]),
+            "sentiment_score_positive": float(result["sentiment_scores"]["Positive"]),
+            "sentiment_score_neutral": float(result["sentiment_scores"]["Neutral"]),
+            "sentiment_score_negative": float(result["sentiment_scores"]["Negative"]),
+            "job_id": result["job_id"],
+        }
+        for result in results
+    ]
+
+    try:
+        # Upsert records using Supabase client
+        data = (
+            supabase.table("sentiment_results")
+            .upsert(records, on_conflict="post_id,job_id")
+            .execute()
+        )
+        logger.info("Successfully upserted %d results in Supabase", len(records))
+        return data
+    except APIError as e:
+        logger.error("Failed to store results in Supabase: %s", str(e))
+        raise
