@@ -8,7 +8,7 @@ import logging
 from datetime import datetime
 import boto3
 from model.post import Post
-from functions.job_creator.provider_factory import get_provider
+from providers.provider_factory import get_provider
 
 # Configure logging
 logger = logging.getLogger()

@@ -338,7 +338,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       CodeUri: sentiment_getter/
-      Handler: functions/sentiment_job_creator.lambda_handler
+      Handler: functions/job_creator/entry.lambda_handler
       Runtime: python3.12
       Timeout: 60
       LoggingConfig:

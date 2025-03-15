@@ -12,7 +12,7 @@ from typing import List, Dict, Any
 import boto3
 import openai
 from model.post import Post
-from functions.job_creator.sentiment_provider import SentimentProvider
+from providers.sentiment_provider import SentimentProvider
 
 # Configure logging
 logger = logging.getLogger()

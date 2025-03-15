@@ -5,9 +5,9 @@ Factory for creating sentiment providers.
 import os
 import logging
 
-from functions.job_creator.sentiment_provider import SentimentProvider
-from functions.job_creator.comprehend_provider import ComprehendProvider
-from functions.job_creator.chatgpt_provider import ChatGPTProvider
+from providers.sentiment_provider import SentimentProvider
+from providers.comprehend_provider import ComprehendProvider
+from providers.chatgpt_provider import ChatGPTProvider
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)

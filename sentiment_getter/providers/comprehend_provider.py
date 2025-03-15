@@ -9,7 +9,7 @@ from typing import List, Dict, Any
 
 import boto3
 from model.post import Post
-from functions.job_creator.sentiment_provider import SentimentProvider
+from providers.sentiment_provider import SentimentProvider
 
 # Configure logging
 logger = logging.getLogger()
@@ -90,4 +90,4 @@ class ComprehendProvider(SentimentProvider):
             "job_name": job_name,
             "provider": self.get_provider_name(),
             "status": "SUBMITTED",
-        } 
+        }
