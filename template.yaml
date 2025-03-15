@@ -235,7 +235,7 @@ Resources:
                             - ErrorEquals:
                                 - States.ALL
                               ResultPath: $.error
-                              Next: FailReddit
+                              Next: NotifyRedditError
                           End: true
                         SkipReddit:
                           Type: Pass
@@ -243,10 +243,14 @@ Resources:
                             source: reddit
                             status: skipped
                           End: true
-                        FailReddit:
-                          Type: Fail
-                          ErrorPath: $.error
-                          CausePath: $.cause
+                        NotifyRedditError:
+                          Type: Task
+                          Resource: arn:aws:states:::sns:publish
+                          Parameters:
+                            TopicArn: !Ref ErrorTopic
+                            Message.$: $
+                            Subject: Sentiment Analysis Pipeline Error
+                          End: true
                     - StartAt: CheckSteam
                       States:
                         CheckSteam:
@@ -275,7 +279,7 @@ Resources:
                             - ErrorEquals:
                                 - States.ALL
                               ResultPath: $.error
-                              Next: FailSteam
+                              Next: NotifySteamError
                           End: true
                         SkipSteam:
                           End: true
@@ -283,10 +287,14 @@ Resources:
                             source: steam
                             status: skipped
                           Type: Pass
-                        FailSteam:
-                          Type: Fail
-                          ErrorPath: $.error
-                          CausePath: $.cause
+                        NotifySteamError:
+                          Type: Task
+                          Resource: arn:aws:states:::sns:publish
+                          Parameters:
+                            TopicArn: !Ref ErrorTopic
+                            Message.$: $
+                            Subject: Sentiment Analysis Pipeline Error
+                          End: true
                   End: true
             Catch:
               - ErrorEquals: ["States.ALL"]
