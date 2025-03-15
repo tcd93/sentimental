@@ -99,6 +99,10 @@ def get_steam_reviews(keyword, time_filter="day", sort="top", post_limit=6):
             body=review["review"],
             created_at=created_at,
             comments=[],  # Steam reviews don't have comments in the same way
+            post_url=(
+                "https://steamcommunity.com/profiles/"
+                f"{review['author']['steamid']}/recommended/{app_id}/"
+            ),
         )
         posts.append(post)
 

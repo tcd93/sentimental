@@ -82,8 +82,8 @@ def start_sentiment_analysis_job(
             "source": source,
             "post_metadata": {
                 "id": post.id,
-                "title": post.title,
                 "created_at": post.created_at.isoformat(),
+                "post_url": post.post_url
             },
         }
     )

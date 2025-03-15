@@ -415,6 +415,8 @@ Resources:
           AttributeType: S
         - AttributeName: created_time
           AttributeType: S
+        - AttributeName: insert_time
+          AttributeType: S
       KeySchema:
         - AttributeName: keyword
           KeyType: HASH

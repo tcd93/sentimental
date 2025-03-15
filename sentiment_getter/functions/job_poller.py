@@ -180,7 +180,7 @@ def process_completed_job(job, current_version):
 
                         # Get post metadata directly since we're processing one post per job
                         post_id = post_metadata["id"]
-                        post_title = post_metadata.get("title", "")
+                        post_url = post_metadata.get("post_url", "")
                         created_at = post_metadata.get(
                             "created_at", datetime.now().isoformat()
                         )
@@ -191,7 +191,8 @@ def process_completed_job(job, current_version):
                             "created_time": created_at,
                             "source": source,
                             "post_id": post_id,
-                            "post_title": post_title,
+                            "post_url": post_url,
+                            "insert_time": datetime.now().isoformat(),
                             "sentiment": result["Sentiment"],
                             "sentiment_score": {
                                 "mixed": Decimal(

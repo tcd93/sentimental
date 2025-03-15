@@ -16,6 +16,7 @@ class Post:
     created_at: datetime
     body: str
     comments: list[str]
+    post_url: str = ""  # Optional URL to the original post
 
     def get_text(self) -> str:
         """Get the text of the post and comments (with limit)"""
