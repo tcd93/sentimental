@@ -19,6 +19,13 @@ Parameters:
     Type: String
     Description: OpenAI API Key for ChatGPT integration
     NoEcho: true  # Hide the value in CloudFormation console
+  SupabaseUrl:
+    Type: String
+    Description: Supabase project URL
+  SupabaseKey:
+    Type: String
+    Description: Supabase database password
+    NoEcho: true  # Hide the value in CloudFormation console
 
 Resources:
   # S3 Bucket for Comprehend input/output
@@ -145,7 +152,6 @@ Resources:
           S3_BUCKET_NAME: !Ref BucketName
           COMPREHEND_ROLE_ARN: !GetAtt ComprehendServiceRole.Arn
           JOBS_TABLE_NAME: !Ref ComprehendJobsTable
-          RESULTS_TABLE_NAME: !Ref SentimentResultsTable
       Policies:
         - Version: "2012-10-17"
           Statement:
@@ -164,8 +170,6 @@ Resources:
             QueueName: !GetAtt PostsQueue.QueueName
         - DynamoDBCrudPolicy:
             TableName: !Ref ComprehendJobsTable
-        - DynamoDBCrudPolicy:
-            TableName: !Ref SentimentResultsTable
         - S3CrudPolicy:
             BucketName: !Ref BucketName
       Events:
@@ -404,28 +408,6 @@ Resources:
         AttributeName: ttl
         Enabled: true
 
-  # DynamoDB table for sentiment results
-  SentimentResultsTable:
-    Type: AWS::DynamoDB::Table
-    Properties:
-      TableName: !Sub "${AWS::StackName}-sentiment-results"
-      BillingMode: PAY_PER_REQUEST
-      AttributeDefinitions:
-        - AttributeName: keyword
-          AttributeType: S
-        - AttributeName: created_time
-          AttributeType: S
-        - AttributeName: insert_time
-          AttributeType: S
-      KeySchema:
-        - AttributeName: keyword
-          KeyType: HASH
-        - AttributeName: created_time
-          KeyType: RANGE
-      TimeToLiveSpecification:
-        AttributeName: ttl
-        Enabled: true
-
   JobPollerLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
@@ -446,16 +428,17 @@ Resources:
           OnFailure:
             Type: SNS
             Destination: !Ref ErrorTopic
+      Layers:
+        - !Ref PythonDependenciesLayer
       Environment:
         Variables:
           S3_BUCKET_NAME: !Ref BucketName
           JOBS_TABLE_NAME: !Ref ComprehendJobsTable
-          RESULTS_TABLE_NAME: !Ref SentimentResultsTable
+          SUPABASE_URL: !Ref SupabaseUrl
+          SUPABASE_KEY: !Ref SupabaseKey
       Policies:
         - DynamoDBCrudPolicy:
             TableName: !Ref ComprehendJobsTable
-        - DynamoDBCrudPolicy:
-            TableName: !Ref SentimentResultsTable
         - Version: "2012-10-17"
           Statement:
             - Effect: Allow

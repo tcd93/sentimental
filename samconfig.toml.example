@@ -11,5 +11,8 @@ parameter_overrides = [
     "RedditClientSecret=your-client-secret",
     "BucketName=your-bucket-name",
     # if you have an OpenAI key, set it here to improve keyword suggestion
-    "OpenAIApiKey=your-openai-key"
+    "OpenAIApiKey=your-openai-key",
+    # Supabase configuration
+    "SupabaseUrl=your-project.supabase.co",
+    "SupabaseKey=your-supabase-key"
 ]

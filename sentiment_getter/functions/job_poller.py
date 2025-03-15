@@ -8,9 +8,10 @@ import logging
 from datetime import datetime, timedelta
 import tarfile
 import io
-from decimal import Decimal
 import boto3
 from botocore.exceptions import ClientError
+from supabase import create_client, Client
+from postgrest import APIError
 
 # Configure logging
 logger = logging.getLogger()
@@ -24,11 +25,13 @@ dynamodb = boto3.resource("dynamodb")
 # Constants
 BUCKET_NAME = os.environ["S3_BUCKET_NAME"]
 JOBS_TABLE_NAME = os.environ["JOBS_TABLE_NAME"]
-RESULTS_TABLE_NAME = os.environ["RESULTS_TABLE_NAME"]
+SUPABASE_URL = os.environ["SUPABASE_URL"]
+SUPABASE_KEY = os.environ["SUPABASE_KEY"]
 jobs_table = dynamodb.Table(JOBS_TABLE_NAME)
-results_table = dynamodb.Table(RESULTS_TABLE_NAME)
 JOB_OUTPUT_PREFIX = "comprehend-jobs/output/"
 
+# Initialize Supabase client
+supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 def update_job_status(job_id: str, status: str, version: int) -> tuple[bool, int]:
     """Update job status with optimistic locking"""
@@ -69,6 +72,40 @@ def update_job_status(job_id: str, status: str, version: int) -> tuple[bool, int
     except ClientError as e:
         logger.error("Error updating job %s: %s", job_id, str(e))
         return False, version
+
+
+def store_results_in_supabase(results):
+    """Store sentiment results in Supabase using upsert to handle duplicates"""
+    if not results:
+        return
+
+    records = [
+        {
+            "keyword": result["keyword"],
+            "created_time": result["created_time"],
+            "source": result["source"],
+            "post_id": result["post_id"],
+            "post_url": result["post_url"],
+            "sentiment": result["sentiment"],
+            "sentiment_score_mixed": float(result["sentiment_scores"]["Mixed"]),
+            "sentiment_score_positive": float(result["sentiment_scores"]["Positive"]),
+            "sentiment_score_neutral": float(result["sentiment_scores"]["Neutral"]),
+            "sentiment_score_negative": float(result["sentiment_scores"]["Negative"]),
+            "job_id": result["job_id"]
+        }
+        for result in results
+    ]
+
+    try:
+        # Upsert records using Supabase client
+        data = (supabase.table("sentiment_results")
+                .upsert(records, on_conflict="post_id,job_id")
+                .execute())
+        logger.info("Successfully upserted %d results in Supabase", len(records))
+        return data
+    except APIError as e:
+        logger.error("Failed to store results in Supabase: %s", str(e))
+        raise
 
 
 def lambda_handler(_, __):
@@ -164,7 +201,7 @@ def process_completed_job(job, current_version):
     logger.info("Successfully retrieved output file")
 
     # Extract and process results
-    processed = 0
+    results_to_store = []
     with tarfile.open(fileobj=io.BytesIO(tar_content), mode="r:gz") as tar:
         for member in tar.getmembers():
             if member.name == "output":
@@ -178,52 +215,21 @@ def process_completed_job(job, current_version):
                         result = json.loads(line)
                         logger.info("Raw sentiment result: %s", json.dumps(result))
 
-                        # Get post metadata directly since we're processing one post per job
-                        post_id = post_metadata["id"]
-                        post_url = post_metadata.get("post_url", "")
-                        created_at = post_metadata.get(
-                            "created_at", datetime.now().isoformat()
-                        )
-
-                        # Store result data in DynamoDB with flattened metadata
+                        # Prepare result data
                         result_data = {
                             "keyword": keyword,
-                            "created_time": created_at,
+                            "created_time": post_metadata.get("created_at"),
                             "source": source,
-                            "post_id": post_id,
-                            "post_url": post_url,
-                            "insert_time": datetime.now().isoformat(),
+                            "post_id": post_metadata["id"],
+                            "post_url": post_metadata.get("post_url", ""),
                             "sentiment": result["Sentiment"],
-                            "sentiment_score": {
-                                "mixed": Decimal(
-                                    str(result["SentimentScore"]["Mixed"])
-                                ),
-                                "positive": Decimal(
-                                    str(result["SentimentScore"]["Positive"])
-                                ),
-                                "neutral": Decimal(
-                                    str(result["SentimentScore"]["Neutral"])
-                                ),
-                                "negative": Decimal(
-                                    str(result["SentimentScore"]["Negative"])
-                                ),
-                            },
+                            "sentiment_scores": result["SentimentScore"],
                             "job_id": job_id,
-                            "ttl": int(
-                                (datetime.now() + timedelta(days=1095)).timestamp()
-                            ),  # 3-year TTL
                         }
+                        results_to_store.append(result_data)
 
-                        logger.info(
-                            "Storing results in DynamoDB for keyword %s", keyword
-                        )
-                        results_table.put_item(Item=result_data)
-                        processed += 1
+    store_results_in_supabase(results_to_store)
 
-    # Update job status to PROCESSED in DynamoDB with optimistic locking
     success, current_version = update_job_status(job_id, "PROCESSED", current_version)
     if not success:
         logger.error("Failed to update job %s status - version mismatch", job_id)
-        return
-
-    logger.info("Successfully processed %d results for job %s", processed, job_id)
