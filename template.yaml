@@ -308,6 +308,7 @@ Resources:
           JOBS_TABLE_NAME: !Ref ComprehendJobsTable
           SUPABASE_URL: !Ref SupabaseUrl
           SUPABASE_KEY: !Ref SupabaseKey
+          OPENAI_API_KEY: !Ref OpenAIApiKey
       Policies:
         - DynamoDBCrudPolicy:
             TableName: !Ref ComprehendJobsTable
@@ -347,6 +348,9 @@ Resources:
           S3_BUCKET_NAME: !Ref BucketName
           COMPREHEND_ROLE_ARN: !GetAtt ComprehendServiceRole.Arn
           JOBS_TABLE_NAME: !Ref ComprehendJobsTable
+          OPENAI_API_KEY: !Ref OpenAIApiKey
+      Layers:
+        - !Ref PythonDependenciesLayer
       EventInvokeConfig:
         DestinationConfig:
           OnFailure:

@@ -1,5 +1,5 @@
 """
-Lambda function to poll for Comprehend job completion and process results.
+Lambda function to poll for sentiment analysis job completion and process results.
 """
 
 import json
@@ -9,10 +9,9 @@ from datetime import datetime, timedelta
 import tarfile
 import io
 import boto3
+import openai
 from botocore.exceptions import ClientError
 from supabase import create_client, Client
-from postgrest import APIError
-
 from model.post import Post
 
 # Configure logging
@@ -29,18 +28,20 @@ BUCKET_NAME = os.environ["S3_BUCKET_NAME"]
 JOBS_TABLE_NAME = os.environ["JOBS_TABLE_NAME"]
 SUPABASE_URL = os.environ["SUPABASE_URL"]
 SUPABASE_KEY = os.environ["SUPABASE_KEY"]
+OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
 jobs_table = dynamodb.Table(JOBS_TABLE_NAME)
 JOB_OUTPUT_PREFIX = "comprehend-jobs/output/"
 
 # Initialize Supabase client
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-
+# Configure OpenAI client
+openai.api_key = OPENAI_API_KEY
 
 
 def lambda_handler(_, __):
     """
-    Poll for Comprehend jobs that are in SUBMITTED or IN_PROGRESS state
+    Poll for sentiment analysis jobs that are in SUBMITTED or IN_PROGRESS state
     and process completed jobs.
     """
     # Query DynamoDB for pending jobs
@@ -64,10 +65,17 @@ def lambda_handler(_, __):
     processed_jobs = 0
     for job in pending_jobs:
         job_id = job["job_id"]
-        current_version = job.get("version", 0)
-        # Check job status
-        job_details = comprehend.describe_sentiment_detection_job(JobId=job_id)
-        status = job_details["SentimentDetectionJobProperties"]["JobStatus"]
+        current_version = job["version"]
+        provider = job["provider"]
+        if provider == "chatgpt" and not OPENAI_API_KEY:
+            logger.error("ChatGPT provider selected but no API key provided")
+            raise ValueError("ChatGPT provider selected but no API key provided")
+
+        # Check job status based on provider
+        if provider == "chatgpt":
+            status, output_file_id = check_chatgpt_job_status(job)
+        else:  # Default to Comprehend
+            status = check_comprehend_job_status(job_id)
 
         # Update status in DynamoDB with optimistic locking
         if status != job["status"]:
@@ -76,7 +84,7 @@ def lambda_handler(_, __):
             )
             if not success:
                 continue
-            logger.info("Updated job %s status to %s", job_id, status)
+            logger.info("Updated job status from %s to %s ", job["status"], status)
 
         # Process completed jobs
         if status == "COMPLETED":
@@ -85,14 +93,15 @@ def lambda_handler(_, __):
             )
             if not success:
                 continue
-            process_completed_job(job, current_version)
+
+            if provider == "chatgpt":
+                process_completed_chatgpt_job(job, output_file_id, current_version)
+            else:
+                process_completed_comprehend_job(job, current_version)
+
             processed_jobs += 1
         elif status == "FAILED":
-            logger.error(
-                "Job %s failed: %s",
-                job_id,
-                job_details["SentimentDetectionJobProperties"].get("Message", ""),
-            )
+            logger.error("Job %s failed", job_id)
             success, current_version = update_job_status(
                 job_id, "FAILED", current_version
             )
@@ -107,15 +116,40 @@ def lambda_handler(_, __):
     }
 
 
-def process_completed_job(job, current_version):
+def check_comprehend_job_status(job_id):
+    """Check the status of a Comprehend job"""
+    job_details = comprehend.describe_sentiment_detection_job(JobId=job_id)
+    return job_details["SentimentDetectionJobProperties"]["JobStatus"]
+
+
+def check_chatgpt_job_status(job):
+    """Check the status of a ChatGPT batch job"""
+    batch_id = job["openai_batch_id"]
+    job_id = job["job_id"]
+
+    if not batch_id:
+        logger.error("No OpenAI batch ID found for job %s", job_id)
+        return "FAILED"
+
+    batch_response = openai.batches.retrieve(batch_id)
+
+    # Map OpenAI status to Comprehend status (because Comprehend is developed first)
+    openai_status = batch_response.status
+    if openai_status == "completed":
+        return "COMPLETED", batch_response.output_file_id
+    if openai_status in ["failed", "cancelled", "expired"]:
+        logger.error("OpenAI batch job %s: %s", openai_status, batch_response)
+        return "FAILED"
+    if openai_status == "in_progress":
+        return "IN_PROGRESS"
+
+
+def process_completed_comprehend_job(job, current_version):
     """Process a completed Comprehend job"""
     job_id = job["job_id"]
     posts = job["posts"]
 
-    # Assert that job["posts"] is a list
-    assert isinstance(posts, list), "job['posts'] must be a list"
-
-    logger.info("Processing completed job %s", job_id)
+    logger.info("Processing completed Comprehend job %s", job_id)
     job_details = comprehend.describe_sentiment_detection_job(JobId=job_id)
     output_s3_uri = job_details["SentimentDetectionJobProperties"]["OutputDataConfig"][
         "S3Uri"
@@ -142,12 +176,9 @@ def process_completed_job(job, current_version):
                     # Process each line (one result per line)
                     for line_number, line in enumerate(lines):
                         result = json.loads(line)
-                        # logger.info("Raw sentiment result: %s", json.dumps(result))
 
-                        # find the post metadata for the result, which is from the line number
+                        # Find the post metadata for the result, which is from the line number
                         post = Post.from_json(posts[line_number])
-                        logger.debug("Post: %s", post)
-                        logger.debug("Line: %s", line)
 
                         # Prepare result data
                         result_data = {
@@ -160,7 +191,6 @@ def process_completed_job(job, current_version):
                             "sentiment_scores": result["SentimentScore"],
                             "job_id": job_id,
                         }
-                        # logger.info("Result data: %s", json.dumps(result_data))
                         results_to_store.append(result_data)
 
     store_results_in_supabase(results_to_store)
@@ -168,6 +198,71 @@ def process_completed_job(job, current_version):
     success, current_version = update_job_status(job_id, "PROCESSED", current_version)
     if not success:
         logger.error("Failed to update job %s status - version mismatch", job_id)
+
+
+def process_completed_chatgpt_job(job, output_file_id, current_version):
+    """Process a completed ChatGPT batch job"""
+    job_id = job["job_id"]
+    posts = [Post.from_json(post) for post in job["posts"]]
+
+    if not output_file_id:
+        logger.error("No output file ID found for job %s", job_id)
+        update_job_status(job_id, "FAILED", current_version)
+        raise ValueError("No output file ID found")
+
+
+    logger.info("Processing completed ChatGPT job %s", job_id)
+
+    content = openai.files.content(output_file_id)
+    content_str = content.read().decode("utf-8")
+
+    results_to_store = []
+    lines = content_str.strip().split("\n")
+
+    for line in lines:
+        logger.info("Processing line: %s", line)
+        openai_result = json.loads(line)
+        if openai_result["response"]["status_code"] != 200:
+            logger.warning("Unexpected response: %s", openai_result["response"])
+            continue
+
+        post_id = openai_result["custom_id"]
+        if post_id not in [post.id for post in posts]:
+            logger.warning("Post ID %s not found in job posts", post_id)
+            continue
+
+        # Find the corresponding post
+        post = next(post for post in posts if post.id == post_id)
+
+        # Extract sentiment data
+        content = openai_result["response"]["body"]["choices"][0]["message"]["content"]
+        parsed = json.loads(content)
+        sentiment = parsed["sentiment"]
+        scores = parsed["scores"]
+
+        # Prepare result data
+        result_data = {
+            "keyword": post.keyword,
+            "created_time": post.created_at.isoformat(),
+            "source": post.source,
+            "post_id": post.id,
+            "post_url": post.post_url,
+            "sentiment": sentiment,
+            "sentiment_scores": scores,
+            "job_id": job_id,
+        }
+        results_to_store.append(result_data)
+
+    store_results_in_supabase(results_to_store)
+
+    success, current_version = update_job_status(
+        job_id, "PROCESSED", current_version
+    )
+    if not success:
+        logger.error(
+            "Failed to update job %s status to PROCESSED - version mismatch", job_id
+        )
+
 
 def update_job_status(job_id: str, status: str, version: int) -> tuple[bool, int]:
     """Update job status with optimistic locking"""
@@ -231,15 +326,11 @@ def store_results_in_supabase(results):
         for result in results
     ]
 
-    try:
-        # Upsert records using Supabase client
-        data = (
-            supabase.table("sentiment_results")
-            .upsert(records, on_conflict="post_id,job_id")
-            .execute()
-        )
-        logger.info("Successfully upserted %d results in Supabase", len(records))
-        return data
-    except APIError as e:
-        logger.error("Failed to store results in Supabase: %s", str(e))
-        raise
+    data = (
+        supabase.table("sentiment_results")
+        .upsert(records, on_conflict="post_id,job_id")
+        .execute()
+    )
+    if data.count is not None:
+        logger.info("Successfully upserted %d records in Supabase", data.count)
+    return data

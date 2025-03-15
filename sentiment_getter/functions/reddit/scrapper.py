@@ -37,7 +37,7 @@ def get_openai_client():
 
 def openai_set() -> bool:
     """Check if the OpenAI API key is set."""
-    return os.environ["OPENAI_API_KEY"] is not None
+    return os.environ.get("OPENAI_API_KEY") is not None
 
 
 def get_subreddits_from_chatgpt(openai: OpenAI, keyword: str) -> list[str]:
