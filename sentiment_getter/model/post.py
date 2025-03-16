@@ -8,6 +8,7 @@ import json
 
 
 @dataclass
+# pylint: disable=too-many-instance-attributes
 class Post:
     """Post object representing a social media post with comments."""
 

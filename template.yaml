@@ -1,6 +1,6 @@
 # cloud formation template for sentiment getter
 # https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/sam-specification-resources-and-properties.html
-AWSTemplateFormatVersion: "2010-09-09"
+AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
 Description: Sentiment Analysis Pipeline for Social Media Keywords
 
@@ -11,21 +11,21 @@ Parameters:
   RedditClientSecret:
     Type: String
     Description: Reddit API Client Secret
-    NoEcho: true  # Hide the value in CloudFormation console
+    NoEcho: true # Hide the value in CloudFormation console
   BucketName:
     Type: String
     Description: S3 Bucket for storing Comprehend input/output
   OpenAIApiKey:
     Type: String
     Description: OpenAI API Key for ChatGPT integration
-    NoEcho: true  # Hide the value in CloudFormation console
+    NoEcho: true # Hide the value in CloudFormation console
   SupabaseUrl:
     Type: String
     Description: Supabase project URL
   SupabaseKey:
     Type: String
     Description: Supabase database password
-    NoEcho: true  # Hide the value in CloudFormation console
+    NoEcho: true # Hide the value in CloudFormation console
 
 Resources:
   # S3 Bucket for Comprehend input/output
@@ -49,7 +49,7 @@ Resources:
   PythonDependenciesLayer:
     Type: AWS::Serverless::LayerVersion
     Properties:
-      LayerName: !Sub "${AWS::StackName}-python-deps"
+      LayerName: !Sub ${AWS::StackName}-python-deps
       Description: Python dependencies for social media APIs (praw, tweepy)
       ContentUri: layers/python-api-packages.zip
       CompatibleRuntimes:
@@ -62,13 +62,13 @@ Resources:
   SteamScraperLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
-      LogGroupName: !Sub "/aws/lambda/${AWS::StackName}-steam-scraper"
+      LogGroupName: !Sub /aws/lambda/${AWS::StackName}-steam-scraper
       RetentionInDays: 7
 
   RedditScraperLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
-      LogGroupName: !Sub "/aws/lambda/${AWS::StackName}-reddit-scraper"
+      LogGroupName: !Sub /aws/lambda/${AWS::StackName}-reddit-scraper
       RetentionInDays: 7
 
   # Lambda Functions
@@ -121,7 +121,7 @@ Resources:
   StepFunctionsLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
-      LogGroupName: !Sub "/aws/vendedlogs/states/${AWS::StackName}-KeywordPipeline"
+      LogGroupName: !Sub /aws/vendedlogs/states/${AWS::StackName}-KeywordPipeline
       RetentionInDays: 7
 
   # Step Functions State Machine
@@ -141,10 +141,17 @@ Resources:
           ProcessKeywords:
             Type: Map
             InputPath: $.tasks
+            # Map returns a list for each input "tasks"
+            # each task after being processed by SelectScrapers will return a list of "choices" from a source
+            # each choice is a Post object
+            # the ResultSelector flattens the list of lists into a single list of Post objects
+            OutputPath: $[*][*][*]
+            Next: CreateSentimentJob
             ItemProcessor:
               StartAt: SelectScrapers
               States:
                 SelectScrapers:
+                  End: true
                   Type: Parallel
                   Branches:
                     - StartAt: CheckReddit
@@ -181,12 +188,10 @@ Resources:
                           Type: Pass
                           Result: []
                           End: true
-                  Next: CreateSentimentJob
-                CreateSentimentJob:
-                  Type: Task
-                  Resource: !GetAtt SentimentJobCreatorFunction.Arn
-                  End: true
+          CreateSentimentJob:
+            Type: Task
             End: true
+            Resource: !GetAtt SentimentJobCreatorFunction.Arn
       Policies:
         - LambdaInvokePolicy:
             FunctionName: !Ref RedditScraperFunction
@@ -230,36 +235,36 @@ Resources:
     Type: AWS::IAM::Role
     Properties:
       AssumeRolePolicyDocument:
-        Version: "2012-10-17"
+        Version: '2012-10-17'
         Statement:
           - Effect: Allow
             Principal:
               Service: comprehend.amazonaws.com
-            Action: "sts:AssumeRole"
+            Action: sts:AssumeRole
             Condition:
               StringEquals:
-                "aws:SourceAccount": !Ref "AWS::AccountId"
+                aws:SourceAccount: !Ref AWS::AccountId
       ManagedPolicyArns:
-        - "arn:aws:iam::aws:policy/AmazonS3FullAccess"
+        - arn:aws:iam::aws:policy/AmazonS3FullAccess
       Policies:
         - PolicyName: ComprehendServiceRolePolicy
           PolicyDocument:
-            Version: "2012-10-17"
+            Version: '2012-10-17'
             Statement:
               - Effect: Allow
                 Action:
-                  - "s3:GetObject"
-                  - "s3:ListBucket"
-                  - "s3:PutObject"
+                  - s3:GetObject
+                  - s3:ListBucket
+                  - s3:PutObject
                 Resource:
-                  - !Sub "arn:aws:s3:::${BucketName}"
-                  - !Sub "arn:aws:s3:::${BucketName}/*"
+                  - !Sub arn:aws:s3:::${BucketName}
+                  - !Sub arn:aws:s3:::${BucketName}/*
 
   # DynamoDB table to track job status
   ComprehendJobsTable:
     Type: AWS::DynamoDB::Table
     Properties:
-      TableName: !Sub "${AWS::StackName}-comprehend-jobs"
+      TableName: !Sub ${AWS::StackName}-comprehend-jobs
       BillingMode: PAY_PER_REQUEST
       AttributeDefinitions:
         - AttributeName: job_id
@@ -283,14 +288,14 @@ Resources:
   JobPollerLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
-      LogGroupName: !Sub "/aws/lambda/${AWS::StackName}-job-poller"
+      LogGroupName: !Sub /aws/lambda/${AWS::StackName}-job-poller
       RetentionInDays: 7
 
   JobPollerFunction:
     Type: AWS::Serverless::Function
     Properties:
       CodeUri: sentiment_getter/
-      Handler: functions/job_poller.lambda_handler
+      Handler: functions/jobs/entry.lambda_handler
       Runtime: python3.12
       Timeout: 60
       LoggingConfig:
@@ -312,12 +317,12 @@ Resources:
       Policies:
         - DynamoDBCrudPolicy:
             TableName: !Ref ComprehendJobsTable
-        - Version: "2012-10-17"
+        - Version: '2012-10-17'
           Statement:
             - Effect: Allow
               Action:
-                - "comprehend:*"
-              Resource: "*"
+                - comprehend:*
+              Resource: '*'
         - S3CrudPolicy:
             BucketName: !Ref BucketName
       Events:
@@ -330,7 +335,7 @@ Resources:
   SentimentJobCreatorLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
-      LogGroupName: !Sub "/aws/lambda/${AWS::StackName}-sentiment-job-creator"
+      LogGroupName: !Sub /aws/lambda/${AWS::StackName}-sentiment-job-creator
       RetentionInDays: 7
 
   # Update Sentiment Job Creator Function
@@ -338,7 +343,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       CodeUri: sentiment_getter/
-      Handler: functions/job_creator/entry.lambda_handler
+      Handler: functions/sentiment_analyze/entry.lambda_handler
       Runtime: python3.12
       Timeout: 60
       LoggingConfig:
@@ -357,19 +362,19 @@ Resources:
             Type: SNS
             Destination: !Ref ErrorTopic
       Policies:
-        - Version: "2012-10-17"
+        - Version: '2012-10-17'
           Statement:
             - Effect: Allow
               Action:
-                - "comprehend:*"
-              Resource: "*"
+                - comprehend:*
+              Resource: '*'
             - Effect: Allow
               Action:
                 - iam:PassRole
               Resource: !GetAtt ComprehendServiceRole.Arn
               Condition:
                 StringEquals:
-                  "iam:PassedToService": "comprehend.amazonaws.com"
+                  iam:PassedToService: comprehend.amazonaws.com
         - DynamoDBCrudPolicy:
             TableName: !Ref ComprehendJobsTable
         - S3CrudPolicy:
@@ -377,17 +382,17 @@ Resources:
 
 Outputs:
   StateMachineArn:
-    Description: "State machine ARN"
+    Description: State machine ARN
     Value: !Ref KeywordPipeline
   ScraperFunctionArn:
-    Description: "Reddit scraper function ARN"
+    Description: Reddit scraper function ARN
     Value: !GetAtt RedditScraperFunction.Arn
   ErrorTopicArn:
-    Description: "Error notification topic ARN"
+    Description: Error notification topic ARN
     Value: !Ref ErrorTopic
   JobPollerFunctionArn:
-    Description: "Job poller function ARN"
+    Description: Job poller function ARN
     Value: !GetAtt JobPollerFunction.Arn
   ComprehendJobsTableName:
-    Description: "DynamoDB table for tracking Comprehend jobs"
+    Description: DynamoDB table for tracking Comprehend jobs
     Value: !Ref ComprehendJobsTable
