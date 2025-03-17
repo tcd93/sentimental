@@ -37,7 +37,10 @@ Resources:
         RedditClientId: !Ref RedditClientId
         RedditClientSecret: !Ref RedditClientSecret
         OpenAIApiKey: !Ref OpenAIApiKey
+        SupabaseUrl: !Ref SupabaseUrl
+        SupabaseKey: !Ref SupabaseKey
         BucketName: !Ref BucketName
+        ComprehendJobsTableName: !GetAtt InfrastructureStack.Outputs.ComprehendJobsTableName
 
   # Include the Step Functions
   StepFunctionsStack:
@@ -48,7 +51,7 @@ Resources:
         RedditScraperArn: !GetAtt LambdaStack.Outputs.RedditScraperFunctionArn
         SteamScraperArn: !GetAtt LambdaStack.Outputs.SteamScraperFunctionArn
         SentimentJobCreatorArn: !GetAtt LambdaStack.Outputs.SentimentJobCreatorFunctionArn
-        ErrorTopicArn: !GetAtt InfrastructureStack.Outputs.ErrorTopicArn
+        ErrorTopicName: !GetAtt InfrastructureStack.Outputs.ErrorTopicName
 
 Outputs:
   StateMachineArn:

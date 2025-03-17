@@ -38,9 +38,9 @@ Resources:
             ProjectionType: ALL
 
 Outputs:
-  ErrorTopicArn:
-    Description: SNS topic for errors
-    Value: !Ref ErrorTopic
+  ErrorTopicName:
+    Description: SNS topic name for errors
+    Value: !GetAtt ErrorTopic.TopicName
   ComprehendJobsTableName:
     Description: DynamoDB table name
     Value: !Ref ComprehendJobsTable

@@ -11,10 +11,67 @@ Parameters:
   OpenAIApiKey:
     Type: String
     NoEcho: true
+  SupabaseUrl:
+    Type: String
+  SupabaseKey:
+    Type: String
+    NoEcho: true
   BucketName:
+    Type: String
+  ComprehendJobsTableName:
     Type: String
 
 Resources:
+  # Python Dependencies Layer
+  PythonDependenciesLayer:
+    Type: AWS::Serverless::LayerVersion
+    Properties:
+      LayerName: python-deps
+      Description: Python dependencies for social media APIs
+      ContentUri: layers/python-api-packages.zip
+      CompatibleRuntimes:
+        - python3.12
+      RetentionPolicy: Retain
+
+  # ComprehendServiceRole for Lambda functions
+  ComprehendServiceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: comprehend.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonS3FullAccess
+
+  # Log Groups
+  RedditScraperLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/${AWS::StackName}-reddit-scraper
+      RetentionInDays: 7
+
+  SteamScraperLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/${AWS::StackName}-steam-scraper
+      RetentionInDays: 7
+
+  SentimentJobCreatorLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/${AWS::StackName}-sentiment-job-creator
+      RetentionInDays: 7
+
+  JobPollerLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/${AWS::StackName}-job-poller
+      RetentionInDays: 7
+
   RedditScraperFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -22,6 +79,10 @@ Resources:
       Handler: functions/reddit/entry.lambda_handler
       Runtime: python3.12
       Timeout: 30
+      Layers:
+        - !Ref PythonDependenciesLayer
+      LoggingConfig:
+        LogGroup: !Ref RedditScraperLogGroup
       Environment:
         Variables:
           REDDIT_CLIENT_ID: !Ref RedditClientId
@@ -38,6 +99,10 @@ Resources:
       Handler: functions/steam/entry.lambda_handler
       Runtime: python3.12
       Timeout: 30
+      Layers:
+        - !Ref PythonDependenciesLayer
+      LoggingConfig:
+        LogGroup: !Ref SteamScraperLogGroup
 
   SentimentJobCreatorFunction:
     Type: AWS::Serverless::Function
@@ -46,9 +111,63 @@ Resources:
       Handler: functions/sentiment_analyze/entry.lambda_handler
       Runtime: python3.12
       Timeout: 60
+      Layers:
+        - !Ref PythonDependenciesLayer
+      LoggingConfig:
+        LogGroup: !Ref SentimentJobCreatorLogGroup
+      Environment:
+        Variables:
+          S3_BUCKET_NAME: !Ref BucketName
+          COMPREHEND_ROLE_ARN: !GetAtt ComprehendServiceRole.Arn
+          JOBS_TABLE_NAME: !Ref ComprehendJobsTableName
+          OPENAI_API_KEY: !Ref OpenAIApiKey
       Policies:
         - S3CrudPolicy:
             BucketName: !Ref BucketName
+        - DynamoDBCrudPolicy:
+            TableName: !Ref ComprehendJobsTableName
+        - Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Action:
+                - comprehend:*
+              Resource: '*'
+            - Effect: Allow
+              Action:
+                - iam:PassRole
+              Resource: !GetAtt ComprehendServiceRole.Arn
+              Condition:
+                StringEquals:
+                  iam:PassedToService: comprehend.amazonaws.com
+
+  JobPollerFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: sentiment_getter/
+      Handler: functions/jobs/entry.lambda_handler
+      Runtime: python3.12
+      Timeout: 60
+      Layers:
+        - !Ref PythonDependenciesLayer
+      LoggingConfig:
+        LogGroup: !Ref JobPollerLogGroup
+      Environment:
+        Variables:
+          JOBS_TABLE_NAME: !Ref ComprehendJobsTableName
+          S3_BUCKET_NAME: !Ref BucketName
+          OPENAI_API_KEY: !Ref OpenAIApiKey
+          SUPABASE_URL: !Ref SupabaseUrl
+          SUPABASE_KEY: !Ref SupabaseKey
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref ComprehendJobsTableName
+        - S3CrudPolicy:
+            BucketName: !Ref BucketName
+      Events:
+        ScheduleEvent:
+          Type: Schedule
+          Properties:
+            Schedule: rate(1 minute)
 
 Outputs:
   RedditScraperFunctionArn:
@@ -60,3 +179,6 @@ Outputs:
   SentimentJobCreatorFunctionArn:
     Description: Sentiment job creator function ARN
     Value: !GetAtt SentimentJobCreatorFunction.Arn
+  JobPollerFunctionArn:
+    Description: Job poller function ARN
+    Value: !GetAtt JobPollerFunction.Arn

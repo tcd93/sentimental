@@ -9,7 +9,7 @@ Parameters:
     Type: String
   SentimentJobCreatorArn:
     Type: String
-  ErrorTopicArn:
+  ErrorTopicName:
     Type: String
 
 Resources:
@@ -28,56 +28,91 @@ Resources:
         Destinations:
           - CloudWatchLogsLogGroup:
               LogGroupArn: !GetAtt StepFunctionsLogGroup.Arn
+      Policies:
+        - CloudWatchLogsFullAccess
+        - Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Action: lambda:InvokeFunction
+              Resource:
+                - !Ref RedditScraperArn
+                - !Ref SteamScraperArn
+                - !Ref SentimentJobCreatorArn
+        - SNSPublishMessagePolicy:
+            TopicName: !Ref ErrorTopicName
       Definition:
-        StartAt: ProcessKeywords
+        StartAt: SelectScrapers
         States:
-          ProcessKeywords:
-            Type: Map
-            InputPath: $.tasks
-            OutputPath: $[*][*][*]
-            Next: CreateSentimentJob
-            ItemProcessor:
-              StartAt: SelectScrapers
-              States:
-                SelectScrapers:
-                  Type: Parallel
-                  Branches:
-                    - StartAt: CheckReddit
+          SelectScrapers:
+            Type: Parallel
+            Branches:
+              - StartAt: ProcessRedditTasks
+                States:
+                  ProcessRedditTasks:
+                    Type: Map
+                    InputPath: $.source.reddit
+                    MaxConcurrency: 10
+                    Iterator:
+                      StartAt: RedditScraper
                       States:
-                        CheckReddit:
-                          Type: Choice
-                          Choices:
-                            - Variable: $.source
-                              StringEquals: reddit
-                              Next: RunRedditScraper
-                          Default: SkipReddit
-                        RunRedditScraper:
+                        RedditScraper:
                           Type: Task
                           Resource: !Ref RedditScraperArn
                           End: true
-                        SkipReddit:
-                          Type: Pass
-                          End: true
-                    - StartAt: CheckSteam
+                    End: true
+                    # FLatten [[], [], []...] to [..., ..., ...]
+                    OutputPath: $[*][*]
+              - StartAt: ProcessSteamTasks
+                States:
+                  ProcessSteamTasks:
+                    Type: Map
+                    InputPath: $.source.steam
+                    MaxConcurrency: 10
+                    Iterator:
+                      StartAt: SteamScraper
                       States:
-                        CheckSteam:
-                          Type: Choice
-                          Choices:
-                            - Variable: $.source
-                              StringEquals: steam
-                              Next: RunSteamScraper
-                          Default: SkipSteam
-                        RunSteamScraper:
+                        SteamScraper:
                           Type: Task
                           Resource: !Ref SteamScraperArn
                           End: true
-                        SkipSteam:
-                          Type: Pass
-                          End: true
+                    End: true
+                    # FLatten [[], [], []...] to [..., ..., ...]
+                    OutputPath: $[*][*]
+            OutputPath: $[*][*]
+            Next: CreateSentimentJob
           CreateSentimentJob:
             Type: Task
             Resource: !Ref SentimentJobCreatorArn
             End: true
+      # Add the Events section directly to the StateMachine
+      Events:
+        HourlyTrigger:
+          Type: Schedule
+          Properties:
+            Schedule: rate(1 hour)
+            Input: |
+              {
+                "source": {
+                  "reddit": [
+                    {
+                      "keyword": "assassin's creed",
+                      "time_filter": "day",
+                      "subreddits": [],
+                      "sort": "top",
+                      "post_limit": 6,
+                      "top_comments_limit": 5
+                    }
+                  ],
+                  "steam": [
+                    {
+                      "keyword": "assassin's creed",
+                      "time_filter": "day",
+                      "sort": "top",
+                      "post_limit": 6
+                    }
+                  ]
+                }
+              }
 
 Outputs:
   StateMachineArn:
