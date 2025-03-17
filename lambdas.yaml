@@ -1,0 +1,62 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Lambda functions for Sentiment Analysis
+
+Parameters:
+  RedditClientId:
+    Type: String
+  RedditClientSecret:
+    Type: String
+    NoEcho: true
+  OpenAIApiKey:
+    Type: String
+    NoEcho: true
+  BucketName:
+    Type: String
+
+Resources:
+  RedditScraperFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: sentiment_getter/
+      Handler: functions/reddit/entry.lambda_handler
+      Runtime: python3.12
+      Timeout: 30
+      Environment:
+        Variables:
+          REDDIT_CLIENT_ID: !Ref RedditClientId
+          REDDIT_CLIENT_SECRET: !Ref RedditClientSecret
+          OPENAI_API_KEY: !Ref OpenAIApiKey
+      Policies:
+        - S3CrudPolicy:
+            BucketName: !Ref BucketName
+
+  SteamScraperFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: sentiment_getter/
+      Handler: functions/steam/entry.lambda_handler
+      Runtime: python3.12
+      Timeout: 30
+
+  SentimentJobCreatorFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: sentiment_getter/
+      Handler: functions/sentiment_analyze/entry.lambda_handler
+      Runtime: python3.12
+      Timeout: 60
+      Policies:
+        - S3CrudPolicy:
+            BucketName: !Ref BucketName
+
+Outputs:
+  RedditScraperFunctionArn:
+    Description: Reddit scraper function ARN
+    Value: !GetAtt RedditScraperFunction.Arn
+  SteamScraperFunctionArn:
+    Description: Steam scraper function ARN
+    Value: !GetAtt SteamScraperFunction.Arn
+  SentimentJobCreatorFunctionArn:
+    Description: Sentiment job creator function ARN
+    Value: !GetAtt SentimentJobCreatorFunction.Arn

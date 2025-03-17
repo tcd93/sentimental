@@ -1,0 +1,85 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Step Functions for Sentiment Analysis
+
+Parameters:
+  RedditScraperArn:
+    Type: String
+  SteamScraperArn:
+    Type: String
+  SentimentJobCreatorArn:
+    Type: String
+  ErrorTopicArn:
+    Type: String
+
+Resources:
+  StepFunctionsLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/vendedlogs/states/SentimentAnalysisPipeline
+      RetentionInDays: 7
+
+  KeywordPipeline:
+    Type: AWS::Serverless::StateMachine
+    Properties:
+      Type: EXPRESS
+      Logging:
+        Level: ALL
+        Destinations:
+          - CloudWatchLogsLogGroup:
+              LogGroupArn: !GetAtt StepFunctionsLogGroup.Arn
+      Definition:
+        StartAt: ProcessKeywords
+        States:
+          ProcessKeywords:
+            Type: Map
+            InputPath: $.tasks
+            OutputPath: $[*][*][*]
+            Next: CreateSentimentJob
+            ItemProcessor:
+              StartAt: SelectScrapers
+              States:
+                SelectScrapers:
+                  Type: Parallel
+                  Branches:
+                    - StartAt: CheckReddit
+                      States:
+                        CheckReddit:
+                          Type: Choice
+                          Choices:
+                            - Variable: $.source
+                              StringEquals: reddit
+                              Next: RunRedditScraper
+                          Default: SkipReddit
+                        RunRedditScraper:
+                          Type: Task
+                          Resource: !Ref RedditScraperArn
+                          End: true
+                        SkipReddit:
+                          Type: Pass
+                          End: true
+                    - StartAt: CheckSteam
+                      States:
+                        CheckSteam:
+                          Type: Choice
+                          Choices:
+                            - Variable: $.source
+                              StringEquals: steam
+                              Next: RunSteamScraper
+                          Default: SkipSteam
+                        RunSteamScraper:
+                          Type: Task
+                          Resource: !Ref SteamScraperArn
+                          End: true
+                        SkipSteam:
+                          Type: Pass
+                          End: true
+          CreateSentimentJob:
+            Type: Task
+            Resource: !Ref SentimentJobCreatorArn
+            End: true
+
+Outputs:
+  StateMachineArn:
+    Description: Step Functions ARN
+    Value: !Ref KeywordPipeline

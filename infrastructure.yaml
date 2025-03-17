@@ -1,0 +1,46 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Infrastructure for Sentiment Analysis Pipeline
+
+Parameters:
+  BucketName:
+    Type: String
+
+Resources:
+  SentimentBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Ref BucketName
+
+  ErrorTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      DisplayName: SentimentAnalysisErrors
+
+  ComprehendJobsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: comprehend-jobs
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: job_id
+          AttributeType: S
+        - AttributeName: status
+          AttributeType: S
+      KeySchema:
+        - AttributeName: job_id
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: status-index
+          KeySchema:
+            - AttributeName: status
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
+
+Outputs:
+  ErrorTopicArn:
+    Description: SNS topic for errors
+    Value: !Ref ErrorTopic
+  ComprehendJobsTableName:
+    Description: DynamoDB table name
+    Value: !Ref ComprehendJobsTable

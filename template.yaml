@@ -1,398 +1,59 @@
-# cloud formation template for sentiment getter
-# https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/sam-specification-resources-and-properties.html
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
-Description: Sentiment Analysis Pipeline for Social Media Keywords
+Description: Master template for Sentiment Analysis Pipeline
 
 Parameters:
   RedditClientId:
     Type: String
-    Description: Reddit API Client ID
   RedditClientSecret:
     Type: String
-    Description: Reddit API Client Secret
-    NoEcho: true # Hide the value in CloudFormation console
+    NoEcho: true
   BucketName:
     Type: String
-    Description: S3 Bucket for storing Comprehend input/output
   OpenAIApiKey:
     Type: String
-    Description: OpenAI API Key for ChatGPT integration
-    NoEcho: true # Hide the value in CloudFormation console
+    NoEcho: true
   SupabaseUrl:
     Type: String
-    Description: Supabase project URL
   SupabaseKey:
     Type: String
-    Description: Supabase database password
-    NoEcho: true # Hide the value in CloudFormation console
+    NoEcho: true
 
 Resources:
-  # S3 Bucket for Comprehend input/output
-  SentimentBucket:
-    Type: AWS::S3::Bucket
+  # Include the infrastructure components
+  InfrastructureStack:
+    Type: AWS::CloudFormation::Stack
     Properties:
-      BucketName: !Ref BucketName
-      LifecycleConfiguration:
-        Rules:
-          - Id: DeleteOldFiles
-            Status: Enabled
-            ExpirationInDays: 60
+      TemplateURL: infrastructure.yaml
+      Parameters:
+        BucketName: !Ref BucketName
 
-  # SNS Topic for Error Notifications
-  ErrorTopic:
-    Type: AWS::SNS::Topic
+  # Include the Lambda functions
+  LambdaStack:
+    Type: AWS::CloudFormation::Stack
     Properties:
-      DisplayName: SentimentAnalysisErrors
+      TemplateURL: lambdas.yaml
+      Parameters:
+        RedditClientId: !Ref RedditClientId
+        RedditClientSecret: !Ref RedditClientSecret
+        OpenAIApiKey: !Ref OpenAIApiKey
+        BucketName: !Ref BucketName
 
-  # Lambda Layer for Python dependencies
-  PythonDependenciesLayer:
-    Type: AWS::Serverless::LayerVersion
+  # Include the Step Functions
+  StepFunctionsStack:
+    Type: AWS::CloudFormation::Stack
     Properties:
-      LayerName: !Sub ${AWS::StackName}-python-deps
-      Description: Python dependencies for social media APIs (praw, tweepy)
-      ContentUri: layers/python-api-packages.zip
-      CompatibleRuntimes:
-        - python3.11
-        - python3.12
-        - python3.13
-      RetentionPolicy: Retain
-
-  # Log Groups with 1 week retention
-  SteamScraperLogGroup:
-    Type: AWS::Logs::LogGroup
-    Properties:
-      LogGroupName: !Sub /aws/lambda/${AWS::StackName}-steam-scraper
-      RetentionInDays: 7
-
-  RedditScraperLogGroup:
-    Type: AWS::Logs::LogGroup
-    Properties:
-      LogGroupName: !Sub /aws/lambda/${AWS::StackName}-reddit-scraper
-      RetentionInDays: 7
-
-  # Lambda Functions
-  SteamScraperFunction:
-    Type: AWS::Serverless::Function
-    Properties:
-      CodeUri: sentiment_getter/
-      Handler: functions/steam/entry.lambda_handler
-      Runtime: python3.12
-      Timeout: 30
-      LoggingConfig:
-        LogGroup: !Ref SteamScraperLogGroup
-      Layers:
-        - !Ref PythonDependenciesLayer
-      EventInvokeConfig:
-        DestinationConfig:
-          OnSuccess:
-            Type: Lambda
-            Destination: !GetAtt SentimentJobCreatorFunction.Arn
-          OnFailure:
-            Type: SNS
-            Destination: !Ref ErrorTopic
-
-  RedditScraperFunction:
-    Type: AWS::Serverless::Function
-    Properties:
-      CodeUri: sentiment_getter/
-      Handler: functions/reddit/entry.lambda_handler
-      Runtime: python3.12
-      Timeout: 30
-      LoggingConfig:
-        LogGroup: !Ref RedditScraperLogGroup
-      Layers:
-        - !Ref PythonDependenciesLayer
-      Environment:
-        Variables:
-          REDDIT_CLIENT_ID: !Ref RedditClientId
-          REDDIT_CLIENT_SECRET: !Ref RedditClientSecret
-          OPENAI_API_KEY: !Ref OpenAIApiKey
-      EventInvokeConfig:
-        DestinationConfig:
-          OnSuccess:
-            Type: Lambda
-            Destination: !GetAtt SentimentJobCreatorFunction.Arn
-          OnFailure:
-            Type: SNS
-            Destination: !Ref ErrorTopic
-
-  # CloudWatch Log Group for Step Functions
-  StepFunctionsLogGroup:
-    Type: AWS::Logs::LogGroup
-    Properties:
-      LogGroupName: !Sub /aws/vendedlogs/states/${AWS::StackName}-KeywordPipeline
-      RetentionInDays: 7
-
-  # Step Functions State Machine
-  KeywordPipeline:
-    Type: AWS::Serverless::StateMachine
-    Properties:
-      Type: EXPRESS
-      Logging:
-        Level: ALL
-        IncludeExecutionData: true
-        Destinations:
-          - CloudWatchLogsLogGroup:
-              LogGroupArn: !GetAtt StepFunctionsLogGroup.Arn
-      Definition:
-        StartAt: ProcessKeywords
-        States:
-          ProcessKeywords:
-            Type: Map
-            InputPath: $.tasks
-            # Map returns a list for each input "tasks"
-            # each task after being processed by SelectScrapers will return a list of "choices" from a source
-            # each choice is a Post object
-            # the ResultSelector flattens the list of lists into a single list of Post objects
-            OutputPath: $[*][*][*]
-            Next: CreateSentimentJob
-            ItemProcessor:
-              StartAt: SelectScrapers
-              States:
-                SelectScrapers:
-                  End: true
-                  Type: Parallel
-                  Branches:
-                    - StartAt: CheckReddit
-                      States:
-                        CheckReddit:
-                          Type: Choice
-                          Choices:
-                            - Variable: $.source
-                              StringEquals: reddit
-                              Next: RunRedditScraper
-                          Default: SkipReddit
-                        RunRedditScraper:
-                          Type: Task
-                          Resource: !GetAtt RedditScraperFunction.Arn
-                          End: true
-                        SkipReddit:
-                          Type: Pass
-                          Result: []
-                          End: true
-                    - StartAt: CheckSteam
-                      States:
-                        CheckSteam:
-                          Type: Choice
-                          Choices:
-                            - Variable: $.source
-                              StringEquals: steam
-                              Next: RunSteamScraper
-                          Default: SkipSteam
-                        RunSteamScraper:
-                          Type: Task
-                          Resource: !GetAtt SteamScraperFunction.Arn
-                          End: true
-                        SkipSteam:
-                          Type: Pass
-                          Result: []
-                          End: true
-          CreateSentimentJob:
-            Type: Task
-            End: true
-            Resource: !GetAtt SentimentJobCreatorFunction.Arn
-      Policies:
-        - LambdaInvokePolicy:
-            FunctionName: !Ref RedditScraperFunction
-        - LambdaInvokePolicy:
-            FunctionName: !Ref SteamScraperFunction
-        - LambdaInvokePolicy:
-            FunctionName: !Ref SentimentJobCreatorFunction
-        - SNSPublishMessagePolicy:
-            TopicName: !GetAtt ErrorTopic.TopicName
-        - CloudWatchLogsFullAccess
-      # https://docs.aws.amazon.com/eventbridge/latest/userguide/eb-scheduled-rule-pattern.html
-      Events:
-        HourlyTrigger:
-          Type: Schedule
-          Properties:
-            Schedule: rate(1 hour)
-            Input: |
-              {
-                "tasks": [
-                  {
-                    "keyword": "assassin's creed",
-                    "time_filter": "day",
-                    "subreddits": [],
-                    "sort": "top",
-                    "post_limit": 6,
-                    "top_comments_limit": 5,
-                    "source": "reddit"
-                  },
-                  {
-                    "keyword": "assassin's creed",
-                    "time_filter": "day",
-                    "sort": "top",
-                    "post_limit": 6,
-                    "source": "steam"
-                  }
-                ]
-              }
-
-  # IAM Role for Comprehend to access S3
-  ComprehendServiceRole:
-    Type: AWS::IAM::Role
-    Properties:
-      AssumeRolePolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-          - Effect: Allow
-            Principal:
-              Service: comprehend.amazonaws.com
-            Action: sts:AssumeRole
-            Condition:
-              StringEquals:
-                aws:SourceAccount: !Ref AWS::AccountId
-      ManagedPolicyArns:
-        - arn:aws:iam::aws:policy/AmazonS3FullAccess
-      Policies:
-        - PolicyName: ComprehendServiceRolePolicy
-          PolicyDocument:
-            Version: '2012-10-17'
-            Statement:
-              - Effect: Allow
-                Action:
-                  - s3:GetObject
-                  - s3:ListBucket
-                  - s3:PutObject
-                Resource:
-                  - !Sub arn:aws:s3:::${BucketName}
-                  - !Sub arn:aws:s3:::${BucketName}/*
-
-  # DynamoDB table to track job status
-  ComprehendJobsTable:
-    Type: AWS::DynamoDB::Table
-    Properties:
-      TableName: !Sub ${AWS::StackName}-comprehend-jobs
-      BillingMode: PAY_PER_REQUEST
-      AttributeDefinitions:
-        - AttributeName: job_id
-          AttributeType: S
-        - AttributeName: status
-          AttributeType: S
-      KeySchema:
-        - AttributeName: job_id
-          KeyType: HASH
-      GlobalSecondaryIndexes:
-        - IndexName: status-index
-          KeySchema:
-            - AttributeName: status
-              KeyType: HASH
-          Projection:
-            ProjectionType: ALL
-      TimeToLiveSpecification:
-        AttributeName: ttl
-        Enabled: true
-
-  JobPollerLogGroup:
-    Type: AWS::Logs::LogGroup
-    Properties:
-      LogGroupName: !Sub /aws/lambda/${AWS::StackName}-job-poller
-      RetentionInDays: 7
-
-  JobPollerFunction:
-    Type: AWS::Serverless::Function
-    Properties:
-      CodeUri: sentiment_getter/
-      Handler: functions/jobs/entry.lambda_handler
-      Runtime: python3.12
-      Timeout: 60
-      LoggingConfig:
-        LogGroup: !Ref JobPollerLogGroup
-      EventInvokeConfig:
-        DestinationConfig:
-          OnFailure:
-            Type: SNS
-            Destination: !Ref ErrorTopic
-      Layers:
-        - !Ref PythonDependenciesLayer
-      Environment:
-        Variables:
-          S3_BUCKET_NAME: !Ref BucketName
-          JOBS_TABLE_NAME: !Ref ComprehendJobsTable
-          SUPABASE_URL: !Ref SupabaseUrl
-          SUPABASE_KEY: !Ref SupabaseKey
-          OPENAI_API_KEY: !Ref OpenAIApiKey
-      Policies:
-        - DynamoDBCrudPolicy:
-            TableName: !Ref ComprehendJobsTable
-        - Version: '2012-10-17'
-          Statement:
-            - Effect: Allow
-              Action:
-                - comprehend:*
-              Resource: '*'
-        - S3CrudPolicy:
-            BucketName: !Ref BucketName
-      Events:
-        ScheduleEvent:
-          Type: Schedule
-          Properties:
-            Schedule: rate(1 minute)
-
-  # Add Log Group for Sentiment Job Creator
-  SentimentJobCreatorLogGroup:
-    Type: AWS::Logs::LogGroup
-    Properties:
-      LogGroupName: !Sub /aws/lambda/${AWS::StackName}-sentiment-job-creator
-      RetentionInDays: 7
-
-  # Update Sentiment Job Creator Function
-  SentimentJobCreatorFunction:
-    Type: AWS::Serverless::Function
-    Properties:
-      CodeUri: sentiment_getter/
-      Handler: functions/sentiment_analyze/entry.lambda_handler
-      Runtime: python3.12
-      Timeout: 60
-      LoggingConfig:
-        LogGroup: !Ref SentimentJobCreatorLogGroup
-      Environment:
-        Variables:
-          S3_BUCKET_NAME: !Ref BucketName
-          COMPREHEND_ROLE_ARN: !GetAtt ComprehendServiceRole.Arn
-          JOBS_TABLE_NAME: !Ref ComprehendJobsTable
-          OPENAI_API_KEY: !Ref OpenAIApiKey
-      Layers:
-        - !Ref PythonDependenciesLayer
-      EventInvokeConfig:
-        DestinationConfig:
-          OnFailure:
-            Type: SNS
-            Destination: !Ref ErrorTopic
-      Policies:
-        - Version: '2012-10-17'
-          Statement:
-            - Effect: Allow
-              Action:
-                - comprehend:*
-              Resource: '*'
-            - Effect: Allow
-              Action:
-                - iam:PassRole
-              Resource: !GetAtt ComprehendServiceRole.Arn
-              Condition:
-                StringEquals:
-                  iam:PassedToService: comprehend.amazonaws.com
-        - DynamoDBCrudPolicy:
-            TableName: !Ref ComprehendJobsTable
-        - S3CrudPolicy:
-            BucketName: !Ref BucketName
+      TemplateURL: stepfunctions.yaml
+      Parameters:
+        RedditScraperArn: !GetAtt LambdaStack.Outputs.RedditScraperFunctionArn
+        SteamScraperArn: !GetAtt LambdaStack.Outputs.SteamScraperFunctionArn
+        SentimentJobCreatorArn: !GetAtt LambdaStack.Outputs.SentimentJobCreatorFunctionArn
+        ErrorTopicArn: !GetAtt InfrastructureStack.Outputs.ErrorTopicArn
 
 Outputs:
   StateMachineArn:
     Description: State machine ARN
-    Value: !Ref KeywordPipeline
+    Value: !GetAtt StepFunctionsStack.Outputs.StateMachineArn
   ScraperFunctionArn:
     Description: Reddit scraper function ARN
-    Value: !GetAtt RedditScraperFunction.Arn
-  ErrorTopicArn:
-    Description: Error notification topic ARN
-    Value: !Ref ErrorTopic
-  JobPollerFunctionArn:
-    Description: Job poller function ARN
-    Value: !GetAtt JobPollerFunction.Arn
-  ComprehendJobsTableName:
-    Description: DynamoDB table for tracking Comprehend jobs
-    Value: !Ref ComprehendJobsTable
+    Value: !GetAtt LambdaStack.Outputs.RedditScraperFunctionArn
