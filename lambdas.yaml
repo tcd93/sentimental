@@ -18,7 +18,7 @@ Parameters:
     NoEcho: true
   BucketName:
     Type: String
-  ComprehendJobsTableName:
+  SentimentJobTableName:
     Type: String
 
 Resources:
@@ -119,13 +119,13 @@ Resources:
         Variables:
           S3_BUCKET_NAME: !Ref BucketName
           COMPREHEND_ROLE_ARN: !GetAtt ComprehendServiceRole.Arn
-          JOBS_TABLE_NAME: !Ref ComprehendJobsTableName
+          JOBS_TABLE_NAME: !Ref SentimentJobTableName
           OPENAI_API_KEY: !Ref OpenAIApiKey
       Policies:
         - S3CrudPolicy:
             BucketName: !Ref BucketName
         - DynamoDBCrudPolicy:
-            TableName: !Ref ComprehendJobsTableName
+            TableName: !Ref SentimentJobTableName
         - Version: '2012-10-17'
           Statement:
             - Effect: Allow
@@ -153,14 +153,14 @@ Resources:
         LogGroup: !Ref JobPollerLogGroup
       Environment:
         Variables:
-          JOBS_TABLE_NAME: !Ref ComprehendJobsTableName
+          JOBS_TABLE_NAME: !Ref SentimentJobTableName
           S3_BUCKET_NAME: !Ref BucketName
           OPENAI_API_KEY: !Ref OpenAIApiKey
           SUPABASE_URL: !Ref SupabaseUrl
           SUPABASE_KEY: !Ref SupabaseKey
       Policies:
         - DynamoDBCrudPolicy:
-            TableName: !Ref ComprehendJobsTableName
+            TableName: !Ref SentimentJobTableName
         - S3CrudPolicy:
             BucketName: !Ref BucketName
       Events:

@@ -25,6 +25,7 @@ Resources:
       Type: EXPRESS
       Logging:
         Level: ALL
+        IncludeExecutionData: true
         Destinations:
           - CloudWatchLogsLogGroup:
               LogGroupArn: !GetAtt StepFunctionsLogGroup.Arn
@@ -101,6 +102,126 @@ Resources:
                       "sort": "top",
                       "post_limit": 6,
                       "top_comments_limit": 5
+                    },
+                    {
+                      "keyword": "elden ring",
+                      "time_filter": "day",
+                      "subreddits": [],
+                      "sort": "top",
+                      "post_limit": 6,
+                      "top_comments_limit": 5
+                    },
+                    {
+                      "keyword": "cyberpunk 2077",
+                      "time_filter": "day",
+                      "subreddits": [],
+                      "sort": "top",
+                      "post_limit": 6,
+                      "top_comments_limit": 5
+                    },
+                    {
+                      "keyword": "the witcher 3",
+                      "time_filter": "day",
+                      "subreddits": [],
+                      "sort": "top",
+                      "post_limit": 6,
+                      "top_comments_limit": 5
+                    },
+                    {
+                      "keyword": "red dead redemption 2",
+                      "time_filter": "day",
+                      "subreddits": [],
+                      "sort": "top",
+                      "post_limit": 6,
+                      "top_comments_limit": 5
+                    },
+                    {
+                      "keyword": "gta v",
+                      "time_filter": "day",
+                      "subreddits": [],
+                      "sort": "top",
+                      "post_limit": 6,
+                      "top_comments_limit": 5
+                    },
+                    {
+                      "keyword": "starfield",
+                      "time_filter": "day",
+                      "subreddits": [],
+                      "sort": "top",
+                      "post_limit": 6,
+                      "top_comments_limit": 5
+                    },
+                    {
+                      "keyword": "hogwarts legacy",
+                      "time_filter": "day",
+                      "subreddits": [],
+                      "sort": "top",
+                      "post_limit": 6,
+                      "top_comments_limit": 5
+                    },
+                    {
+                      "keyword": "baldur's gate 3",
+                      "time_filter": "day",
+                      "subreddits": [],
+                      "sort": "top",
+                      "post_limit": 6,
+                      "top_comments_limit": 5
+                    },
+                    {
+                      "keyword": "nier automata",
+                      "time_filter": "day",
+                      "subreddits": [],
+                      "sort": "top",
+                      "post_limit": 6,
+                      "top_comments_limit": 5
+                    },
+                    {
+                      "keyword": "call of duty",
+                      "time_filter": "day",
+                      "subreddits": [],
+                      "sort": "top",
+                      "post_limit": 6,
+                      "top_comments_limit": 5
+                    },
+                    {
+                      "keyword": "fifa 24",
+                      "time_filter": "day",
+                      "subreddits": [],
+                      "sort": "top",
+                      "post_limit": 6,
+                      "top_comments_limit": 5
+                    },
+                    {
+                      "keyword": "apex legends",
+                      "time_filter": "day",
+                      "subreddits": [],
+                      "sort": "top",
+                      "post_limit": 6,
+                      "top_comments_limit": 5
+                    },
+                    {
+                      "keyword": "valorant",
+                      "time_filter": "day",
+                      "subreddits": [],
+                      "sort": "top",
+                      "post_limit": 6,
+                      "top_comments_limit": 5
+                    },
+                    {
+                      "keyword": "league of legends",
+                      "time_filter": "day",
+                      "subreddits": [],
+                      "sort": "top",
+                      "post_limit": 6,
+                      "top_comments_limit": 5
+                    },
+                    {
+                      "keyword": "fortnite",
+                      "time_filter": "day",
+                      "subreddits": [],
+                      "sort": "top",
+                      "post_limit": 6,
+                      "top_comments_limit": 5
                     }
                   ],
                   "steam": [
@@ -109,10 +230,101 @@ Resources:
                       "time_filter": "day",
                       "sort": "top",
                       "post_limit": 6
+                    },
+                    {
+                      "keyword": "nier automata",
+                      "time_filter": "day",
+                      "sort": "top",
+                      "post_limit": 6
+                    },
+                    {
+                      "keyword": "elden ring",
+                      "time_filter": "day",
+                      "sort": "top",
+                      "post_limit": 6
+                    },
+                    {
+                      "keyword": "cyberpunk 2077",
+                      "time_filter": "day",
+                      "sort": "top",
+                      "post_limit": 6
+                    },
+                    {
+                      "keyword": "the witcher 3",
+                      "time_filter": "day",
+                      "sort": "top",
+                      "post_limit": 6
+                    },
+                    {
+                      "keyword": "red dead redemption 2",
+                      "time_filter": "day",
+                      "sort": "top",
+                      "post_limit": 6
+                    },
+                    {
+                      "keyword": "gta v",
+                      "time_filter": "day",
+                      "sort": "top",
+                      "post_limit": 6
+                    },
+                    {
+                      "keyword": "starfield",
+                      "time_filter": "day",
+                      "sort": "top",
+                      "post_limit": 6
+                    },
+                    {
+                      "keyword": "hogwarts legacy",
+                      "time_filter": "day",
+                      "sort": "top",
+                      "post_limit": 6
+                    },
+                    {
+                      "keyword": "baldur's gate 3",
+                      "time_filter": "day",
+                      "sort": "top",
+                      "post_limit": 6
+                    },
+                    {
+                      "keyword": "call of duty",
+                      "time_filter": "day",
+                      "sort": "top",
+                      "post_limit": 6
+                    },
+                    {
+                      "keyword": "fifa 24",
+                      "time_filter": "day",
+                      "sort": "top",
+                      "post_limit": 6
+                    },
+                    {
+                      "keyword": "apex legends",
+                      "time_filter": "day",
+                      "sort": "top",
+                      "post_limit": 6
+                    },
+                    {
+                      "keyword": "valorant",
+                      "time_filter": "day",
+                      "sort": "top",
+                      "post_limit": 6
+                    },
+                    {
+                      "keyword": "league of legends",
+                      "time_filter": "day",
+                      "sort": "top",
+                      "post_limit": 6
+                    },
+                    {
+                      "keyword": "fortnite",
+                      "time_filter": "day",
+                      "sort": "top",
+                      "post_limit": 6
                     }
                   ]
                 }
               }
+
 
 Outputs:
   StateMachineArn:

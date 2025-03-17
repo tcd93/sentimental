@@ -16,10 +16,10 @@ Resources:
     Properties:
       DisplayName: SentimentAnalysisErrors
 
-  ComprehendJobsTable:
+  SentimentJobTable:
     Type: AWS::DynamoDB::Table
     Properties:
-      TableName: comprehend-jobs
+      TableName: sentiment_job
       BillingMode: PAY_PER_REQUEST
       AttributeDefinitions:
         - AttributeName: job_id
@@ -41,6 +41,6 @@ Outputs:
   ErrorTopicName:
     Description: SNS topic name for errors
     Value: !GetAtt ErrorTopic.TopicName
-  ComprehendJobsTableName:
+  SentimentJobTableName:
     Description: DynamoDB table name
-    Value: !Ref ComprehendJobsTable
+    Value: !Ref SentimentJobTable
