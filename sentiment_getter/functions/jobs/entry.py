@@ -39,7 +39,7 @@ def lambda_handler(_, __):
 
     # Combine results from both queries
     pending_items = response.get("Items", []) + in_progress_response.get("Items", [])
-    logger.info("Found %d pending jobs", len(pending_items))
+    logger.debug("Found %d pending jobs", len(pending_items))
 
     provider = get_provider()
     jobs = [Job.from_dict(item) for item in pending_items]

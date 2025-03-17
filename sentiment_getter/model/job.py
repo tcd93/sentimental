@@ -150,29 +150,6 @@ class Job:
 
         return result
 
-    def to_json(self) -> str:
-        """
-        Convert the Job object to a JSON string.
-
-        Returns:
-            JSON string representation of the Job
-        """
-        return json.dumps(self.to_dict())
-
-    @classmethod
-    def from_json(cls, json_str: str) -> "Job":
-        """
-        Create a Job object from a JSON string.
-
-        Args:
-            json_str: JSON string representation of a Job
-
-        Returns:
-            Job object
-        """
-        data = json.loads(json_str)
-        return cls.from_dict(data)
-
     def sync_dynamodb(self) -> bool:
         """
         Sync the job to DynamoDB. With optimistic locking.
@@ -185,10 +162,15 @@ class Job:
             return False
 
         try:
-            jobs_table.put_item(
+            response = jobs_table.put_item(
                 Item=self.to_dict()
                 # Add ttl to the item
-                | {"ttl": int((datetime.now() + timedelta(days=30)).timestamp())}
+                | {"ttl": int((datetime.now() + timedelta(days=30)).timestamp())},
+                ReturnConsumedCapacity="TOTAL",
+            )
+            logger.info(
+                "Synced job to DynamoDB, total capacity units consumed: %s",
+                response.get("ConsumedCapacity", {}).get("CapacityUnits", "N/A"),
             )
             return True
         except ClientError as e:

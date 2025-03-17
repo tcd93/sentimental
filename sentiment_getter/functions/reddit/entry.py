@@ -25,7 +25,7 @@ def lambda_handler(event, _):
     Returns:
         Dict containing posts and metadata
     """
-    logger.info(
+    logger.debug(
         "Starting Reddit scraper with parameters: %s", json.dumps(event, indent=2)
     )
 

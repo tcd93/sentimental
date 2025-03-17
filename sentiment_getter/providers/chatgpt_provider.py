@@ -120,10 +120,9 @@ class ChatGPTProvider(SentimentProvider):
         # Map OpenAI status to our status
         openai_status = batch_response.status
         if openai_status == "completed":
-            # if batch_response is json, log it
             logger.info(
                 "OpenAI batch job completed, batch_response: %s",
-                batch_response,
+                batch_response.to_json(indent=2),
             )
             # Update the job with the output file ID
             job.provider_data = ChatGPTProviderData(

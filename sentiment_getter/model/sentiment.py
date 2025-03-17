@@ -76,7 +76,7 @@ class Sentiment:
                 "job_id": self.job.job_id,
             }
         )
-        logger.info("Upserting record: %s", json.dumps(record, indent=4))
+        logger.debug("Upserting record: %s", json.dumps(record, indent=4))
 
         result = (
             supabase.table("sentiment_results")
@@ -84,7 +84,7 @@ class Sentiment:
             .execute()
         )
         if result.count is not None:
-            logger.info("Successfully upserted %d records in Supabase", result.count)
+            logger.debug("Successfully upserted %d records in Supabase", result.count)
             return result.count
 
         return len(result.data)
