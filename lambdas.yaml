@@ -146,7 +146,8 @@ Resources:
       CodeUri: sentiment_getter/
       Handler: functions/jobs/entry.lambda_handler
       Runtime: python3.12
-      Timeout: 60
+      MemorySize: 256
+      Timeout: 300
       Layers:
         - !Ref PythonDependenciesLayer
       LoggingConfig:
