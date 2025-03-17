@@ -79,14 +79,6 @@ class ChatGPTProvider(SentimentProvider):
                 file=file_content,
                 purpose="batch",
             )
-            # save file to s3
-            # s3 = boto3.client("s3")
-            # s3.put_object(
-            #     Bucket=os.environ["S3_BUCKET_NAME"],
-            #     Key=f"{job_id}/input.jsonl",  # More descriptive filename
-            #     Body=file_content,
-            #     ContentType="text/plain",
-            # )
 
         batch_response = openai.batches.create(
             input_file_id=file_response.id,
@@ -148,13 +140,13 @@ class ChatGPTProvider(SentimentProvider):
             s3 = boto3.client("s3")
             s3.put_object(
                 Bucket=os.environ["S3_BUCKET_NAME"],
-                Key=f"{job.job_id}/error.jsonl",
+                Key=f"chatgpt/jobs/{job.job_id}/error.jsonl",
                 Body=content.text,
                 ContentType="text/plain",
             )
             logger.warning(
                 "Error file uploaded to s3: %s",
-                f"{job.job_id}/error.jsonl",
+                f"jobs/{job.job_id}/error.jsonl",
             )
             return []
 
@@ -167,11 +159,10 @@ class ChatGPTProvider(SentimentProvider):
             return []
 
         content = openai.files.content(job.provider_data.output_file_id)
-        content_str = content.read().decode("utf-8")
-        logger.debug("Content: %s", content_str)
+        logger.debug("Content: %s", content.text)
 
         sentiments: list[Sentiment] = []
-        lines = content_str.strip().split("\n")
+        lines = content.text.strip().split("\n")
 
         for line in lines:
             logger.debug("Processing line: %s", line)

@@ -1,27 +1,21 @@
 """
 Model for sentiment analysis jobs stored in DynamoDB.
+
+Keep the size small to save cost:
+https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/read-write-operations.html#write-operation-consumption
 """
 
-import json
 import os
 from dataclasses import dataclass
 import logging
 from datetime import datetime, timedelta
 
 import boto3
-from botocore.exceptions import ClientError
 from model.post import Post
 
 # Configure logging
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
-
-# Initialize AWS clients
-dynamodb = boto3.resource("dynamodb")
-
-# Constants
-JOBS_TABLE_NAME = os.environ.get("JOBS_TABLE_NAME", "")
-jobs_table = dynamodb.Table(JOBS_TABLE_NAME) if JOBS_TABLE_NAME else None
 
 
 @dataclass(frozen=True)
@@ -65,6 +59,7 @@ class ComprehendProviderData:
         return cls()
 
 
+@dataclass
 class Job:
     """Represents a sentiment analysis job."""
 
@@ -104,13 +99,9 @@ class Job:
         self.provider_data = provider_data
 
     @classmethod
-    def from_dict(cls, data: dict[str, any]) -> "Job":
+    def reconstruct(cls, data: dict[str, any]) -> "Job":
         """
-        Create a Job object from a dictionary.
-
-        Args:
-            data: Dictionary representation of a Job
-            provider: Sentiment provider
+        Create a Job object from job metadata (exported from `to_dict_minimal`).
         """
         if data.get("provider") == "chatgpt":
             provider_data = ChatGPTProviderData.from_dict(data["provider_data"])
@@ -119,19 +110,33 @@ class Job:
         else:
             raise ValueError(f"Unsupported provider: {data['provider']}")
 
+        # if data["posts"] is a list of post ids (str), read posts from S3
+        posts = []
+        if data["posts"] and isinstance(data["posts"], list) and isinstance(data["posts"][0], str):
+            s3 = boto3.client('s3')
+            for post_id in data["posts"]:
+                response = s3.get_object(
+                    Bucket=os.environ["S3_BUCKET_NAME"],
+                    Key=f"chatgpt/posts/{post_id}.json"
+                )
+                post_json = response['Body'].read().decode('utf-8')
+                posts.append(Post.from_json(post_json))
+        else:
+            posts = data["posts"]
+
         return cls(
             job_id=data["job_id"],
             job_name=data["job_name"],
             status=data["status"],
             created_at=data["created_at"],
-            posts=[Post.from_dict(post) for post in data["posts"]],
+            posts=posts,
             provider=data["provider"],
             provider_data=provider_data,
         )
 
-    def to_dict(self) -> dict[str, any]:
+    def to_dict_minimal(self) -> dict[str, any]:
         """
-        Convert the Job object to a dictionary.
+        Convert the Job object to a dictionary. Only keeping post id in "posts" field to save space.
 
         Returns:
             Dictionary representation of the Job
@@ -141,7 +146,7 @@ class Job:
             "job_name": self.job_name,
             "status": self.status,
             "created_at": self.created_at.isoformat(),
-            "posts": [post.to_dict() for post in self.posts],
+            "posts": [post.id for post in self.posts],
             "provider": self.provider,
             "provider_data": (
                 self.provider_data.to_dict() if self.provider_data else None
@@ -150,29 +155,44 @@ class Job:
 
         return result
 
-    def sync_dynamodb(self) -> bool:
+    def persist(self):
         """
-        Sync the job to DynamoDB. With optimistic locking.
-
-        Returns:
-            True if the job was synced, False otherwise
+        Persist the Job info to database (current: DynamoDB).
+        The actual posts are stored in S3 (/posts/[post_id].json)
         """
-        if not jobs_table:
-            logger.error("JOBS_TABLE_NAME environment variable not set")
-            return False
+        self._persist_main()
+        self._persist_posts()
 
-        try:
-            response = jobs_table.put_item(
-                Item=self.to_dict()
-                # Add ttl to the item
-                | {"ttl": int((datetime.now() + timedelta(days=30)).timestamp())},
-                ReturnConsumedCapacity="TOTAL",
+    def _persist_main(self):
+        """
+        Persist the Job info to database (current: DynamoDB).
+        """
+        dynamodb = boto3.resource("dynamodb")
+        jobs_table = dynamodb.Table(os.environ["JOBS_TABLE_NAME"])
+
+        response = jobs_table.put_item(
+            Item=self.to_dict_minimal()
+            | {"ttl": int((datetime.now() + timedelta(days=30)).timestamp())},
+            ReturnConsumedCapacity="TOTAL",
+        )
+        logger.info(
+            "Synced job to DynamoDB, total capacity units consumed: %s",
+            response.get("ConsumedCapacity", {}).get("CapacityUnits", "N/A"),
+        )
+        return True
+
+    def _persist_posts(self):
+        """
+        Persist the posts to database (current: S3).
+        """
+        s3 = boto3.client("s3")
+        bucket_name = os.environ["S3_BUCKET_NAME"]
+
+        for post in self.posts:
+            s3.put_object(
+                Bucket=bucket_name,
+                Key=f"chatgpt/posts/{post.id}.json",
+                Body=post.to_json(),
+                ContentType="application/json",
             )
-            logger.info(
-                "Synced job to DynamoDB, total capacity units consumed: %s",
-                response.get("ConsumedCapacity", {}).get("CapacityUnits", "N/A"),
-            )
-            return True
-        except ClientError as e:
-            logger.error("Error syncing job to DynamoDB: %s", str(e))
-            return False
+        return True

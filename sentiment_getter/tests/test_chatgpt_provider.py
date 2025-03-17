@@ -112,7 +112,7 @@ class TestChatGPTProvider(unittest.TestCase):
 
         # Mock OpenAI file content response
         mock_content = MagicMock()
-        mock_content.read.return_value = json.dumps(
+        mock_content.text = json.dumps(
             {
                 "custom_id": "123",
                 "response": {
@@ -138,9 +138,7 @@ class TestChatGPTProvider(unittest.TestCase):
                     },
                 },
             }
-        ).encode(
-            "utf-8"
-        )  # Ensure we're returning bytes
+        )
         mock_file_content.return_value = mock_content
 
         # Process the job
@@ -195,7 +193,7 @@ class TestChatGPTProvider(unittest.TestCase):
         # Verify S3 put_object was called with correct parameters
         mock_s3.put_object.assert_called_once_with(
             Bucket="test-bucket",
-            Key="test-job-123/error.jsonl",
+            Key="chatgpt/jobs/test-job-123/error.jsonl",
             Body=mock_content.text,  # Use the mock encoded value
             ContentType="text/plain",
         )

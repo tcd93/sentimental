@@ -3,7 +3,7 @@ This module contains the Sentiment class, which is used to represent the sentime
 """
 
 import os
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass
 import json
 import logging
 from model.job import Job
@@ -27,32 +27,6 @@ class Sentiment:
     negative: float
     neutral: float
 
-    def to_dict(self) -> dict:
-        """Convert Sentiment to dictionary for serialization."""
-        return asdict(self)
-
-    def to_json(self) -> str:
-        """Convert Sentiment to JSON string."""
-        return json.dumps(self.to_dict())
-
-    @classmethod
-    def from_dict(cls, data: dict) -> "Sentiment":
-        """Create Sentiment from dictionary."""
-        return cls(
-            job=Job.from_dict(data["job"]),
-            post=Post.from_dict(data["post"]),
-            sentiment=data["sentiment"],
-            mixed=data["mixed"],
-            positive=data["positive"],
-            negative=data["negative"],
-            neutral=data["neutral"],
-        )
-
-    @classmethod
-    def from_json(cls, json_str: str) -> "Sentiment":
-        """Create Sentiment from JSON string."""
-        return cls.from_dict(json.loads(json_str))
-
     def sync_supabase(self):
         """Sync the sentiment to Supabase. Returns the number of records upserted."""
 
@@ -61,21 +35,19 @@ class Sentiment:
             os.environ["SUPABASE_URL"], os.environ["SUPABASE_KEY"]
         )
 
-        record = (
-            {
-                "keyword": self.post.keyword,
-                "source": self.post.source,
-                "post_created_time": self.post.created_at.isoformat(),
-                "post_id": self.post.id,
-                "post_url": self.post.post_url,
-                "sentiment": self.sentiment,
-                "sentiment_score_mixed": self.mixed,
-                "sentiment_score_positive": self.positive,
-                "sentiment_score_neutral": self.neutral,
-                "sentiment_score_negative": self.negative,
-                "job_id": self.job.job_id,
-            }
-        )
+        record = {
+            "keyword": self.post.keyword,
+            "source": self.post.source,
+            "post_created_time": self.post.created_at.isoformat(),
+            "post_id": self.post.id,
+            "post_url": self.post.post_url,
+            "sentiment": self.sentiment,
+            "sentiment_score_mixed": self.mixed,
+            "sentiment_score_positive": self.positive,
+            "sentiment_score_neutral": self.neutral,
+            "sentiment_score_negative": self.negative,
+            "job_id": self.job.job_id,
+        }
         logger.debug("Upserting record: %s", json.dumps(record, indent=4))
 
         result = (

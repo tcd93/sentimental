@@ -35,7 +35,7 @@ class ComprehendProvider(SentimentProvider):
             return {"error": "No posts to analyze"}
 
         # Create a single input file with one post per line
-        input_key = f"comprehend-jobs/input/{job_name}.txt"
+        input_key = f"comprehend/jobs/input/{job_name}.txt"
         posts_text = "\n".join(post.get_text() for post in posts)
         bucket_name = os.environ["S3_BUCKET_NAME"]
 
@@ -99,34 +99,40 @@ class ComprehendProvider(SentimentProvider):
 
         # Get output file
         response = s3.get_object(Bucket=bucket_name, Key=output_key)
-        tar_content = response["Body"].read()
         logger.info("Successfully retrieved output file")
 
         # Extract and process results
-        sentiments: list[Sentiment] = []
-        with tarfile.open(fileobj=io.BytesIO(tar_content), mode="r:gz") as tar:
-            for member in tar.getmembers():
-                if member.name == "output":
-                    f = tar.extractfile(member)
-                    if f:
-                        content = f.read().decode("utf-8")
-                        lines = content.strip().split("\n")
+        with tarfile.open(
+            fileobj=io.BytesIO(response["Body"].read()), mode="r:gz"
+        ) as tar:
+            # Get output files and filter for valid ones
+            files = filter(
+                None,
+                [
+                    tar.extractfile(member)
+                    for member in tar.getmembers()
+                    if member.name == "output"
+                ],
+            )
 
-                        # Process each line (one result per line)
-                        for line_number, line in enumerate(lines):
-                            result = json.loads(line)
+            # Process each file's lines into sentiments
+            sentiments = []
+            for f in files:
+                lines = f.read().decode("utf-8").strip().split("\n")
 
-                            # Find the post metadata for the result, which is from the line number
-                            post = Post.from_json(job.posts[line_number])
-                            sentiment = Sentiment(
-                                job=job,
-                                post=post,
-                                sentiment=result["Sentiment"],
-                                mixed=result["SentimentScore"]["Mixed"],
-                                positive=result["SentimentScore"]["Positive"],
-                                negative=result["SentimentScore"]["Negative"],
-                                neutral=result["SentimentScore"]["Neutral"],
-                            )
-                            sentiments.append(sentiment)
+                for line_index, line_content in enumerate(lines):
+                    sentiment_response = json.loads(line_content)
+                    post = Post.from_json(job.posts[line_index])
+                    sentiments.append(
+                        Sentiment(
+                            job=job,
+                            post=post,
+                            sentiment=sentiment_response["Sentiment"],
+                            mixed=sentiment_response["SentimentScore"]["Mixed"],
+                            positive=sentiment_response["SentimentScore"]["Positive"],
+                            negative=sentiment_response["SentimentScore"]["Negative"],
+                            neutral=sentiment_response["SentimentScore"]["Neutral"],
+                        )
+                    )
 
         return sentiments

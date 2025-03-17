@@ -39,9 +39,7 @@ def lambda_handler(event, _):
     job_name = f"job_{datetime.now().strftime("%Y%m%d_%H%M%S")}"
     provider = get_provider()
     job = provider.create_sentiment_job(posts, job_name)
-    if not job.sync_dynamodb():
-        # pylint: disable=broad-exception-raised
-        raise Exception("Failed to create job")
+    job.persist()
 
     return {
         "statusCode": 200,
