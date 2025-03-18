@@ -5,6 +5,8 @@ This module contains the Post class, which is used to represent a post on a soci
 from dataclasses import dataclass, asdict
 from datetime import datetime
 import json
+import os
+import boto3
 
 
 @dataclass
@@ -60,3 +62,23 @@ class Post:
     def from_json(cls, json_str: str) -> "Post":
         """Create Post from JSON string."""
         return cls.from_dict(json.loads(json_str))
+
+    def persist(self, provider: str):
+        """Persist the Post to S3"""
+        s3 = boto3.client("s3")
+        s3.put_object(
+            Bucket=os.environ["S3_BUCKET_NAME"],
+            Key=f"{provider}/posts/{self.id}.json",
+            Body=self.to_json(),
+            ContentType="application/json",
+        )
+
+    # construct Post from s3
+    @classmethod
+    def from_s3(cls, post_id: str, provider: str) -> "Post":
+        """Construct Post from S3"""
+        s3 = boto3.client("s3")
+        response = s3.get_object(
+            Bucket=os.environ["S3_BUCKET_NAME"], Key=f"{provider}/posts/{post_id}.json"
+        )
+        return cls.from_json(response["Body"].read().decode("utf-8"))

@@ -11,8 +11,6 @@ import logging
 from datetime import datetime, timedelta
 
 import boto3
-from model.post import Post
-
 
 @dataclass(frozen=True)
 class ChatGPTProviderData:
@@ -63,7 +61,7 @@ class Job:
     job_name: str
     status: str
     created_at: datetime
-    posts: list[Post]
+    post_ids: list[str]
     provider: str
     provider_data: ChatGPTProviderData | ComprehendProviderData = None
     logger: logging.Logger | None = None
@@ -77,7 +75,7 @@ class Job:
             self.created_at = datetime.fromisoformat(self.created_at)
 
     @classmethod
-    def reconstruct(cls, data: dict[str, any], logger: logging.Logger = None) -> "Job":
+    def from_dict(cls, data: dict[str, any], logger: logging.Logger | None = None) -> "Job":
         """
         Create a Job object from job metadata (exported from `to_dict_minimal`).
         """
@@ -88,46 +86,24 @@ class Job:
         else:
             raise ValueError(f"Unsupported provider: {data['provider']}")
 
-        # if data["posts"] is a list of post ids (str), read posts from S3
-        posts = []
-        if (
-            data["posts"]
-            and isinstance(data["posts"], list)
-            and isinstance(data["posts"][0], str)
-        ):
-            s3 = boto3.client("s3")
-            start_time = datetime.now()
-            for post_id in data["posts"]:
-                response = s3.get_object(
-                    Bucket=os.environ["S3_BUCKET_NAME"],
-                    Key=f"chatgpt/posts/{post_id}.json",
-                )
-                post_json = response["Body"].read().decode("utf-8")
-                posts.append(Post.from_json(post_json))
-            end_time = datetime.now()
-            if logger:
-                logger.info(
-                    "Read %s posts from S3. Total time (seconds): %s",
-                    len(data["posts"]),
-                    (end_time - start_time).total_seconds(),
-                )
-        else:
-            posts = data["posts"]
-
         return cls(
             job_id=data["job_id"],
             job_name=data["job_name"],
             status=data["status"],
-            created_at=data["created_at"],
-            posts=posts,
+            created_at=(
+                datetime.fromisoformat(data["created_at"])
+                if isinstance(data["created_at"], str)
+                else data["created_at"]
+            ),
+            post_ids=data["post_ids"],
             provider=data["provider"],
             provider_data=provider_data,
             logger=logger,
         )
 
-    def to_dict_minimal(self) -> dict[str, any]:
+    def to_dict(self) -> dict[str, any]:
         """
-        Convert the Job object to a dictionary. Only keeping post id in "posts" field to save space.
+        Convert the Job object to a dictionary.
 
         Returns:
             Dictionary representation of the Job
@@ -141,7 +117,7 @@ class Job:
                 if isinstance(self.created_at, datetime)
                 else self.created_at
             ),
-            "posts": [post.id for post in self.posts],
+            "post_ids": self.post_ids,
             "provider": self.provider,
             "provider_data": (
                 self.provider_data.to_dict() if self.provider_data else None
@@ -152,50 +128,18 @@ class Job:
 
     def persist(self):
         """
-        Persist the Job metadata and posts info to database and S3.
-        You might want to call `persist_main` instead.
-        """
-        self.logger.info("Persisting job ID: %s", self.job_id)
-        self.persist_meta()
-        self._persist_posts()
-
-    def persist_meta(self):
-        """
         Persist the Job info to database.
         """
         dynamodb = boto3.resource("dynamodb")
         jobs_table = dynamodb.Table(os.environ["JOBS_TABLE_NAME"])
 
         response = jobs_table.put_item(
-            Item=self.to_dict_minimal()
+            Item=self.to_dict()
             | {"ttl": int((datetime.now() + timedelta(days=30)).timestamp())},
             ReturnConsumedCapacity="TOTAL",
         )
         self.logger.info(
             "Synced job to DynamoDB, total capacity units consumed: %s",
             response.get("ConsumedCapacity", {}).get("CapacityUnits", "N/A"),
-        )
-        return True
-
-    def _persist_posts(self):
-        """
-        Persist the posts to database (current: S3).
-        """
-        s3 = boto3.client("s3")
-        bucket_name = os.environ["S3_BUCKET_NAME"]
-
-        start_time = datetime.now()
-        for post in self.posts:
-            s3.put_object(
-                Bucket=bucket_name,
-                Key=f"chatgpt/posts/{post.id}.json",
-                Body=post.to_json(),
-                ContentType="application/json",
-            )
-        end_time = datetime.now()
-        self.logger.info(
-            "Persisted %s posts to S3. Total time (seconds): %s",
-            len(self.posts),
-            (end_time - start_time).total_seconds(),
         )
         return True

@@ -8,6 +8,7 @@ from datetime import datetime
 from model.post import Post
 from providers.provider_factory import get_provider
 
+
 def lambda_handler(event, _):
     """
     Create a sentiment analysis job for posts from multiple scrapers.
@@ -36,9 +37,23 @@ def lambda_handler(event, _):
         return {"statusCode": 404, "body": json.dumps("No posts to analyze")}
 
     job_name = f"job_{datetime.now().strftime("%Y%m%d_%H%M%S")}"
+    # persist metadata to dynamo and posts to s3 (to save space)
     provider = get_provider(logger)
+
     job = provider.create_sentiment_job(posts, job_name)
     job.persist()
+
+    start_time = datetime.now()
+
+    for post in posts:
+        post.persist(provider.get_provider_name())
+
+    end_time = datetime.now()
+    logger.info(
+        "Persisted %s posts to S3. Total time (seconds): %s",
+        len(posts),
+        (end_time - start_time).total_seconds(),
+    )
 
     return {
         "statusCode": 200,

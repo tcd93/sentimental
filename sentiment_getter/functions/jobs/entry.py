@@ -7,6 +7,7 @@ import logging
 import boto3
 
 from model.job import Job
+from model.post import Post
 from providers.provider_factory import get_provider
 
 def lambda_handler(_, __):
@@ -50,24 +51,29 @@ def lambda_handler(_, __):
     logger.debug("Found %d pending jobs", len(pending_items))
 
     provider = get_provider(logger)
-    jobs = [Job.reconstruct(item, logger) for item in pending_items]
+    jobs = [Job.from_dict(item, logger) for item in pending_items]
 
     count = 0
     for job in jobs:
         provider.query_and_update_job(job)
 
         if job.status == "COMPLETED":
-            job.persist_meta()
-            sentiments = provider.process_completed_job(job)
+            job.persist()
+            posts = [
+                Post.from_s3(post_id, provider.get_provider_name())
+                for post_id in job.post_ids
+            ]
+
+            sentiments = provider.process_completed_job(job, posts)
             if sentiments:
                 job.status = "DB_SYNCING"
-                job.persist_meta()
+                job.persist()
 
                 for sentiment in sentiments:
                     count += sentiment.sync_supabase()
 
                 job.status = "DB_SYNCED"
-                job.persist_meta()
+                job.persist()
 
     return {
         "statusCode": 200,

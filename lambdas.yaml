@@ -78,7 +78,7 @@ Resources:
       CodeUri: sentiment_getter/
       Handler: functions/reddit/entry.lambda_handler
       Runtime: python3.12
-      Timeout: 30
+      Timeout: 45
       Layers:
         - !Ref PythonDependenciesLayer
       LoggingConfig:

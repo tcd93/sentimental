@@ -53,7 +53,7 @@ class TestChatGPTProvider(unittest.TestCase):
             job_name="Test Job",
             status="SUBMITTED",
             created_at=datetime.now(),
-            posts=[self.sample_post],
+            post_ids=[self.sample_post.id],
             provider="chatgpt",
             provider_data=ChatGPTProviderData(
                 openai_batch_id="batch-123", output_file_id=None
@@ -78,7 +78,7 @@ class TestChatGPTProvider(unittest.TestCase):
             job_name="Test Job",
             status="SUBMITTED",
             created_at=datetime.now(),
-            posts=[self.sample_post],
+            post_ids=[self.sample_post.id],
             provider="chatgpt",
             provider_data=ChatGPTProviderData(
                 openai_batch_id="batch-123",
@@ -103,7 +103,7 @@ class TestChatGPTProvider(unittest.TestCase):
             job_name="Test Job",
             status="COMPLETED",
             created_at=datetime.now(),
-            posts=[self.sample_post],
+            post_ids=[self.sample_post.id],
             provider="chatgpt",
             provider_data=ChatGPTProviderData(
                 openai_batch_id="batch-123", output_file_id="output-123"
@@ -142,7 +142,7 @@ class TestChatGPTProvider(unittest.TestCase):
         mock_file_content.return_value = mock_content
 
         # Process the job
-        sentiments = self.provider.process_completed_job(job)
+        sentiments = self.provider.process_completed_job(job, [self.sample_post])
 
         # Verify results
         self.assertEqual(len(sentiments), 1)
@@ -173,7 +173,7 @@ class TestChatGPTProvider(unittest.TestCase):
             job_name="Test Job",
             status="COMPLETED",
             created_at=datetime.now(),
-            posts=[self.sample_post],
+            post_ids=[self.sample_post.id],
             provider="chatgpt",
             provider_data=ChatGPTProviderData(
                 openai_batch_id="batch-123",
@@ -183,7 +183,7 @@ class TestChatGPTProvider(unittest.TestCase):
         )
 
         # Process the job and verify empty result for error case
-        result = self.provider.process_completed_job(job)
+        result = self.provider.process_completed_job(job, [self.sample_post])
         self.assertEqual(result, [])
 
         # Verify S3 was called with correct parameters

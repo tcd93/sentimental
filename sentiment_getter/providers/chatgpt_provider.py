@@ -93,9 +93,10 @@ class ChatGPTProvider(SentimentProvider):
             job_name=job_name,
             status="SUBMITTED",
             created_at=datetime.now(),
-            posts=posts,
+            post_ids=[post.id for post in posts],
             provider=self.get_provider_name(),
             provider_data=ChatGPTProviderData(openai_batch_id=batch_id),
+            logger=self.logger,
         )
 
     def query_and_update_job(self, job: Job):
@@ -127,7 +128,7 @@ class ChatGPTProvider(SentimentProvider):
             return False
         return False
 
-    def process_completed_job(self, job: Job) -> list[Sentiment]:
+    def process_completed_job(self, job: Job, posts: list[Post]) -> list[Sentiment]:
         if job.provider_data.error_file_id:
             content = openai.files.content(job.provider_data.error_file_id)
             # download error file to s3
@@ -166,12 +167,12 @@ class ChatGPTProvider(SentimentProvider):
                 continue
 
             post_id = openai_result["custom_id"]
-            if post_id not in [post.id for post in job.posts]:
+            if post_id not in [post.id for post in posts]:
                 self.logger.warning("Post ID %s not found in job posts", post_id)
                 continue
 
             # Find the corresponding post
-            post = next(post for post in job.posts if post.id == post_id)
+            post = next(post for post in posts if post.id == post_id)
             self.logger.debug("Found matching post: %s", post)
 
             # Extract sentiment data

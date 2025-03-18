@@ -47,7 +47,7 @@ class SentimentProvider(ABC):
         """
 
     @abstractmethod
-    def process_completed_job(self, job: Job) -> list[Sentiment]:
+    def process_completed_job(self, job: Job, posts: list[Post]) -> list[Sentiment]:
         """
-        Returns the sentiments for a completed job (multiple posts).
+        Returns the sentiments for a completed job.
         """

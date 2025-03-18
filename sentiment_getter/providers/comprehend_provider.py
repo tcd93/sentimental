@@ -58,8 +58,9 @@ class ComprehendProvider(SentimentProvider):
             job_name=job_name,
             status="SUBMITTED",
             created_at=datetime.now(),
-            posts=posts,
+            post_ids=[post.id for post in posts],
             provider=self.get_provider_name(),
+            logger=self.logger,
         )
 
         return job
@@ -80,7 +81,7 @@ class ComprehendProvider(SentimentProvider):
             return False
         return False
 
-    def process_completed_job(self, job: Job) -> list[Sentiment]:
+    def process_completed_job(self, job: Job, posts: list[Post]) -> list[Sentiment]:
         s3 = boto3.client("s3")
         comprehend = boto3.client("comprehend")
         # Get job details from Comprehend
@@ -124,7 +125,7 @@ class ComprehendProvider(SentimentProvider):
                     sentiments.append(
                         Sentiment(
                             job=job,
-                            post=job.posts[line_index],
+                            post=posts[line_index],
                             sentiment=sentiment_response["Sentiment"],
                             mixed=sentiment_response["SentimentScore"]["Mixed"],
                             positive=sentiment_response["SentimentScore"]["Positive"],

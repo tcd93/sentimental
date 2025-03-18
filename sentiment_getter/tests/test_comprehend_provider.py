@@ -93,7 +93,7 @@ class TestComprehendProvider(unittest.TestCase):
             job_name="Test Job",
             status="SUBMITTED",
             created_at=datetime.now(),
-            posts=[self.sample_post, self.sample_post2],
+            post_ids=[self.sample_post.id, self.sample_post2.id],
             provider="comprehend",
         )
 
@@ -147,11 +147,11 @@ class TestComprehendProvider(unittest.TestCase):
             job_name="Test Job",
             status="COMPLETED",
             created_at=datetime.now(),
-            posts=[self.sample_post, self.sample_post2],
+            post_ids=[self.sample_post.id, self.sample_post2.id],
             provider="comprehend",
         )
 
-        sentiments = self.provider.process_completed_job(job)
+        sentiments = self.provider.process_completed_job(job, [self.sample_post, self.sample_post2])
 
         self.assertEqual(len(sentiments), 2)
         sentiment = sentiments[0]
