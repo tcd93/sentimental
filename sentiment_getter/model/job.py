@@ -112,15 +112,26 @@ class Job:
 
         # if data["posts"] is a list of post ids (str), read posts from S3
         posts = []
-        if data["posts"] and isinstance(data["posts"], list) and isinstance(data["posts"][0], str):
-            s3 = boto3.client('s3')
+        if (
+            data["posts"]
+            and isinstance(data["posts"], list)
+            and isinstance(data["posts"][0], str)
+        ):
+            s3 = boto3.client("s3")
+            start_time = datetime.now()
             for post_id in data["posts"]:
                 response = s3.get_object(
                     Bucket=os.environ["S3_BUCKET_NAME"],
-                    Key=f"chatgpt/posts/{post_id}.json"
+                    Key=f"chatgpt/posts/{post_id}.json",
                 )
-                post_json = response['Body'].read().decode('utf-8')
+                post_json = response["Body"].read().decode("utf-8")
                 posts.append(Post.from_json(post_json))
+            end_time = datetime.now()
+            logger.info(
+                "Read %s posts from S3. Total time (seconds): %s",
+                len(data["posts"]),
+                (end_time - start_time).total_seconds(),
+            )
         else:
             posts = data["posts"]
 
@@ -160,6 +171,7 @@ class Job:
         Persist the Job info to database (current: DynamoDB).
         The actual posts are stored in S3 (/posts/[post_id].json)
         """
+        logger.info("Persisting job ID: %s", self.job_id)
         self._persist_main()
         self._persist_posts()
 
@@ -188,6 +200,8 @@ class Job:
         s3 = boto3.client("s3")
         bucket_name = os.environ["S3_BUCKET_NAME"]
 
+
+        start_time = datetime.now()
         for post in self.posts:
             s3.put_object(
                 Bucket=bucket_name,
@@ -195,4 +209,10 @@ class Job:
                 Body=post.to_json(),
                 ContentType="application/json",
             )
+        end_time = datetime.now()
+        logger.info(
+            "Persisted %s posts to S3. Total time (seconds): %s",
+            len(self.posts),
+            (end_time - start_time).total_seconds(),
+        )
         return True
