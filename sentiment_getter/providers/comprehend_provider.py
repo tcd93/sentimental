@@ -19,10 +19,6 @@ from providers.sentiment_provider import SentimentProvider
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
-# Initialize AWS clients
-s3 = boto3.client("s3")
-comprehend = boto3.client("comprehend")
-
 
 class ComprehendProvider(SentimentProvider):
     """AWS Comprehend implementation of the sentiment provider."""
@@ -38,6 +34,9 @@ class ComprehendProvider(SentimentProvider):
         input_key = f"comprehend/jobs/input/{job_name}.txt"
         posts_text = "\n".join(post.get_text() for post in posts)
         bucket_name = os.environ["S3_BUCKET_NAME"]
+
+        s3 = boto3.client("s3")
+        comprehend = boto3.client("comprehend")
 
         # Upload to S3
         s3.put_object(
@@ -71,6 +70,7 @@ class ComprehendProvider(SentimentProvider):
         return job
 
     def query_and_update_job(self, job: Job):
+        comprehend = boto3.client("comprehend")
         job_details = comprehend.describe_sentiment_detection_job(JobId=job.job_id)
         # SUBMITTED | IN_PROGRESS | COMPLETED | FAILED | STOP_REQUESTED | STOPPED
         status = job_details["SentimentDetectionJobProperties"]["JobStatus"]
@@ -86,6 +86,8 @@ class ComprehendProvider(SentimentProvider):
         return False
 
     def process_completed_job(self, job: Job) -> list[Sentiment]:
+        s3 = boto3.client("s3")
+        comprehend = boto3.client("comprehend")
         # Get job details from Comprehend
         job_details = comprehend.describe_sentiment_detection_job(JobId=job.job_id)
         output_s3_uri = job_details["SentimentDetectionJobProperties"][
@@ -115,18 +117,19 @@ class ComprehendProvider(SentimentProvider):
                 ],
             )
 
-            # Process each file's lines into sentiments
+            # Process each file's lines (each line is a processed post) into sentiments
+            # Assumming that they are in the same order as the posts
+            # Edit: there is a `batch_detect_sentiment` from boto3, I am stupid
             sentiments = []
             for f in files:
                 lines = f.read().decode("utf-8").strip().split("\n")
 
                 for line_index, line_content in enumerate(lines):
                     sentiment_response = json.loads(line_content)
-                    post = Post.from_json(job.posts[line_index])
                     sentiments.append(
                         Sentiment(
                             job=job,
-                            post=post,
+                            post=job.posts[line_index],
                             sentiment=sentiment_response["Sentiment"],
                             mixed=sentiment_response["SentimentScore"]["Mixed"],
                             positive=sentiment_response["SentimentScore"]["Positive"],

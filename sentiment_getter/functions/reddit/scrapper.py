@@ -7,9 +7,9 @@ from datetime import datetime
 import os
 import logging
 import praw
+from openai import OpenAI
 from praw.models import Subreddit, Submission
 from model.post import Post
-from openai import OpenAI
 
 # Configure logging
 logger = logging.getLogger()

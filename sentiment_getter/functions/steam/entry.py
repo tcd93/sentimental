@@ -38,9 +38,6 @@ def lambda_handler(event, _):
 
     logger.info("Found %d reviews matching criteria", len(posts))
 
-    if not posts:
-        return []
-
     # Return posts for sentiment analysis
     return [
         post.to_json()
