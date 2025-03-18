@@ -40,7 +40,8 @@ class Post:
         """Convert Post to dictionary for serialization."""
         result = asdict(self)
         # Convert datetime to ISO format string
-        result["created_at"] = self.created_at.isoformat()
+        if isinstance(result["created_at"], datetime):
+            result["created_at"] = result["created_at"].isoformat()
         return result
 
     def to_json(self) -> str:

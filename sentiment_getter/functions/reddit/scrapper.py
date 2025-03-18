@@ -11,10 +11,6 @@ from openai import OpenAI
 from praw.models import Subreddit, Submission
 from model.post import Post
 
-# Configure logging
-logger = logging.getLogger()
-logger.setLevel(logging.INFO)
-
 
 # Initialize Reddit client only when needed
 def get_reddit_client():
@@ -40,7 +36,9 @@ def openai_set() -> bool:
     return os.environ.get("OPENAI_API_KEY") is not None
 
 
-def get_subreddits_from_chatgpt(openai: OpenAI, keyword: str) -> list[str]:
+def get_subreddits_from_chatgpt(
+    openai: OpenAI, keyword: str, logger: logging.Logger | None = None
+) -> list[str]:
     """Get relevant subreddits for a keyword using ChatGPT.
 
     Args:
@@ -81,7 +79,8 @@ def get_subreddits_from_chatgpt(openai: OpenAI, keyword: str) -> list[str]:
         s.strip().lower().replace("r/", "") for s in subreddit_text.split(",")
     ]
 
-    logger.info("ChatGPT suggested subreddits for '%s': %s", keyword, subreddits)
+    if logger:
+        logger.info("ChatGPT suggested subreddits for '%s': %s", keyword, subreddits)
     return subreddits
 
 
@@ -90,7 +89,7 @@ def get_reddit_posts(**kwargs) -> list[Post]:
 
     Args:
         kwargs (dict[str, any]): Dictionary containing:
-            subreddits (list[str]): List of subreddit names to search (without 'r/' prefix). 
+            subreddits (list[str]): List of subreddit names to search (without 'r/' prefix).
                                     If empty, ChatGPT will suggest relevant subreddits.
             keyword (str): Search term to find posts
             sort (str): How to sort results ('relevance', 'hot', 'top', 'new', 'comments')
@@ -112,7 +111,6 @@ def get_reddit_posts(**kwargs) -> list[Post]:
     if not subreddits or len(subreddits) == 0:
         if not openai_set():
             subreddits = ["all"]
-            logger.info("OPENAI_API_KEY is not set, using default subreddits")
         else:
             subreddits = get_subreddits_from_chatgpt(
                 openai=get_openai_client(), keyword=keyword

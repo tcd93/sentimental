@@ -9,10 +9,7 @@ from providers.sentiment_provider import SentimentProvider
 from providers.comprehend_provider import ComprehendProvider
 from providers.chatgpt_provider import ChatGPTProvider
 
-logger = logging.getLogger()
-logger.setLevel(logging.INFO)
-
-def get_provider() -> SentimentProvider:
+def get_provider(logger: logging.Logger | None = None) -> SentimentProvider:
     """
     Get a sentiment provider instance.
 
@@ -22,9 +19,11 @@ def get_provider() -> SentimentProvider:
     Returns:
         SentimentProvider instance
     """
+    if logger is None:
+        logger = logging.getLogger()
+        logger.setLevel(logging.INFO)
+
     # if OPENAI_API_KEY is set, use ChatGPT provider
     if os.environ.get("OPENAI_API_KEY"):
-        logger.info("Using ChatGPT provider")
-        return ChatGPTProvider()
-    logger.info("Using Comprehend provider")
-    return ComprehendProvider()
+        return ChatGPTProvider(logger)
+    return ComprehendProvider(logger)

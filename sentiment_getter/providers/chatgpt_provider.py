@@ -4,7 +4,6 @@ OpenAI ChatGPT implementation of the sentiment provider.
 
 import os
 import json
-import logging
 import uuid
 from datetime import datetime
 
@@ -14,11 +13,6 @@ from model.job import ChatGPTProviderData, Job
 from model.post import Post
 from model.sentiment import Sentiment
 from providers.sentiment_provider import SentimentProvider
-
-# Configure logging
-logger = logging.getLogger()
-logger.setLevel(logging.INFO)
-
 
 class ChatGPTProvider(SentimentProvider):
     """OpenAI ChatGPT implementation of the sentiment provider."""
@@ -86,7 +80,7 @@ class ChatGPTProvider(SentimentProvider):
             completion_window="24h",
         )
         if batch_response.errors is not None:
-            logger.error("Error creating batch job: %s", batch_response.errors)
+            self.logger.error("Error creating batch job: %s", batch_response.errors)
             raise ValueError("Error creating batch job")
 
         batch_id = batch_response.id
@@ -98,7 +92,7 @@ class ChatGPTProvider(SentimentProvider):
             job_id=job_id,
             job_name=job_name,
             status="SUBMITTED",
-            created_at=datetime.now().isoformat(),
+            created_at=datetime.now(),
             posts=posts,
             provider=self.get_provider_name(),
             provider_data=ChatGPTProviderData(openai_batch_id=batch_id),
@@ -112,7 +106,7 @@ class ChatGPTProvider(SentimentProvider):
         # Map OpenAI status to our status
         openai_status = batch_response.status
         if openai_status == "completed":
-            logger.info(
+            self.logger.info(
                 "OpenAI batch job completed, batch_response: %s",
                 batch_response.to_json(indent=2),
             )
@@ -125,7 +119,7 @@ class ChatGPTProvider(SentimentProvider):
             job.status = "COMPLETED"
             return True
         if openai_status in ["failed", "cancelling", "cancelled", "expired"]:
-            logger.error("OpenAI batch job %s: %s", openai_status, batch_response)
+            self.logger.error("OpenAI batch job %s: %s", openai_status, batch_response)
             job.status = "FAILED"
             return False
         if openai_status == "in_progress":
@@ -144,14 +138,14 @@ class ChatGPTProvider(SentimentProvider):
                 Body=content.text,
                 ContentType="text/plain",
             )
-            logger.warning(
+            self.logger.warning(
                 "Error file uploaded to s3: %s",
                 f"jobs/{job.job_id}/error.jsonl",
             )
             return []
 
         if not job.provider_data.output_file_id:
-            logger.error(
+            self.logger.error(
                 "output_file_id is not set for job: %s\n"
                 "make sure to call `openai.batches.retrieve` before",
                 job.job_id,
@@ -159,26 +153,26 @@ class ChatGPTProvider(SentimentProvider):
             return []
 
         content = openai.files.content(job.provider_data.output_file_id)
-        logger.debug("Content: %s", content.text)
+        self.logger.debug("Content: %s", content.text)
 
         sentiments: list[Sentiment] = []
         lines = content.text.strip().split("\n")
 
         for line in lines:
-            logger.debug("Processing line: %s", line)
+            self.logger.debug("Processing line: %s", line)
             openai_result = json.loads(line)
             if openai_result["response"]["status_code"] != 200:
-                logger.warning("Unexpected response: %s", openai_result["response"])
+                self.logger.warning("Unexpected response: %s", openai_result["response"])
                 continue
 
             post_id = openai_result["custom_id"]
             if post_id not in [post.id for post in job.posts]:
-                logger.warning("Post ID %s not found in job posts", post_id)
+                self.logger.warning("Post ID %s not found in job posts", post_id)
                 continue
 
             # Find the corresponding post
             post = next(post for post in job.posts if post.id == post_id)
-            logger.debug("Found matching post: %s", post)
+            self.logger.debug("Found matching post: %s", post)
 
             # Extract sentiment data
             content = openai_result["response"]["body"]["choices"][0]["message"][

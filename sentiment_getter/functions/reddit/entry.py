@@ -7,10 +7,6 @@ import logging
 
 from functions.reddit.scrapper import get_reddit_posts
 
-# Configure logging
-logger = logging.getLogger()
-logger.setLevel(logging.INFO)
-
 SOURCE = "reddit"  # Define source for this scraper
 
 
@@ -25,6 +21,9 @@ def lambda_handler(event, _):
     Returns:
         Dict containing posts and metadata
     """
+    logger = logging.getLogger("reddit scraper")
+    logger.setLevel(logging.INFO)
+
     logger.debug(
         "Starting Reddit scraper with parameters: %s", json.dumps(event, indent=2)
     )

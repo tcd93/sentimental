@@ -7,10 +7,6 @@ import logging
 
 from functions.steam.scraper import get_steam_reviews
 
-# Configure logging
-logger = logging.getLogger()
-logger.setLevel(logging.INFO)
-
 SOURCE = "steam"  # Define source for this scraper
 
 def lambda_handler(event, _):
@@ -24,6 +20,9 @@ def lambda_handler(event, _):
     Returns:
         Dict containing posts and metadata
     """
+    logger = logging.getLogger("steam scraper")
+    logger.setLevel(logging.INFO)
+
     logger.info(
         "Starting Steam scraper with parameters: %s", json.dumps(event, indent=2)
     )

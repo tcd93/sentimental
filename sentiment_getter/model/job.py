@@ -13,10 +13,6 @@ from datetime import datetime, timedelta
 import boto3
 from model.post import Post
 
-# Configure logging
-logger = logging.getLogger()
-logger.setLevel(logging.INFO)
-
 
 @dataclass(frozen=True)
 class ChatGPTProviderData:
@@ -63,43 +59,25 @@ class ComprehendProviderData:
 class Job:
     """Represents a sentiment analysis job."""
 
-    def __init__(
-        self,
-        job_id: str,
-        job_name: str,
-        status: str,
-        created_at: datetime,
-        posts: list[Post],
-        provider: str,
-        provider_data: ChatGPTProviderData | ComprehendProviderData = None,
-    ):
-        """
-        Initialize a Job object.
+    job_id: str
+    job_name: str
+    status: str
+    created_at: datetime
+    posts: list[Post]
+    provider: str
+    provider_data: ChatGPTProviderData | ComprehendProviderData = None
+    logger: logging.Logger | None = None
 
-        Args:
-            job_id: Unique identifier for the job
-            job_name: Human-readable name for the job
-            status: Current status of the job (SUBMITTED, IN_PROGRESS, COMPLETED, etc.)
-            created_at: Timestamp when the job was created
-            posts: List of posts to analyze
-            provider: Name of the sentiment provider (comprehend, chatgpt)
-            provider_data: Provider-specific data
-                           (e.g. openai_batch_id, output_file_id from ChatGPT)
-        """
-        self.job_id = job_id
-        self.job_name = job_name
-        self.status = status
-        self.created_at = (
-            created_at
-            if isinstance(created_at, datetime)
-            else datetime.fromisoformat(created_at)
-        )
-        self.posts = posts
-        self.provider = provider
-        self.provider_data = provider_data
+    def __post_init__(self):
+        if self.logger is None:
+            self.logger = logging.getLogger()
+            self.logger.setLevel(logging.INFO)
+
+        if isinstance(self.created_at, str):
+            self.created_at = datetime.fromisoformat(self.created_at)
 
     @classmethod
-    def reconstruct(cls, data: dict[str, any]) -> "Job":
+    def reconstruct(cls, data: dict[str, any], logger: logging.Logger = None) -> "Job":
         """
         Create a Job object from job metadata (exported from `to_dict_minimal`).
         """
@@ -127,11 +105,12 @@ class Job:
                 post_json = response["Body"].read().decode("utf-8")
                 posts.append(Post.from_json(post_json))
             end_time = datetime.now()
-            logger.info(
-                "Read %s posts from S3. Total time (seconds): %s",
-                len(data["posts"]),
-                (end_time - start_time).total_seconds(),
-            )
+            if logger:
+                logger.info(
+                    "Read %s posts from S3. Total time (seconds): %s",
+                    len(data["posts"]),
+                    (end_time - start_time).total_seconds(),
+                )
         else:
             posts = data["posts"]
 
@@ -143,6 +122,7 @@ class Job:
             posts=posts,
             provider=data["provider"],
             provider_data=provider_data,
+            logger=logger,
         )
 
     def to_dict_minimal(self) -> dict[str, any]:
@@ -156,7 +136,11 @@ class Job:
             "job_id": self.job_id,
             "job_name": self.job_name,
             "status": self.status,
-            "created_at": self.created_at.isoformat(),
+            "created_at": (
+                self.created_at.isoformat()
+                if isinstance(self.created_at, datetime)
+                else self.created_at
+            ),
             "posts": [post.id for post in self.posts],
             "provider": self.provider,
             "provider_data": (
@@ -171,7 +155,7 @@ class Job:
         Persist the Job metadata and posts info to database and S3.
         You might want to call `persist_main` instead.
         """
-        logger.info("Persisting job ID: %s", self.job_id)
+        self.logger.info("Persisting job ID: %s", self.job_id)
         self.persist_meta()
         self._persist_posts()
 
@@ -187,7 +171,7 @@ class Job:
             | {"ttl": int((datetime.now() + timedelta(days=30)).timestamp())},
             ReturnConsumedCapacity="TOTAL",
         )
-        logger.info(
+        self.logger.info(
             "Synced job to DynamoDB, total capacity units consumed: %s",
             response.get("ConsumedCapacity", {}).get("CapacityUnits", "N/A"),
         )
@@ -200,7 +184,6 @@ class Job:
         s3 = boto3.client("s3")
         bucket_name = os.environ["S3_BUCKET_NAME"]
 
-
         start_time = datetime.now()
         for post in self.posts:
             s3.put_object(
@@ -210,7 +193,7 @@ class Job:
                 ContentType="application/json",
             )
         end_time = datetime.now()
-        logger.info(
+        self.logger.info(
             "Persisted %s posts to S3. Total time (seconds): %s",
             len(self.posts),
             (end_time - start_time).total_seconds(),

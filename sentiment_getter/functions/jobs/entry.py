@@ -9,15 +9,13 @@ import boto3
 from model.job import Job
 from providers.provider_factory import get_provider
 
-# Configure logging
-logger = logging.getLogger()
-logger.setLevel(logging.INFO)
-
 def lambda_handler(_, __):
     """
     Poll for sentiment analysis jobs that are in SUBMITTED or IN_PROGRESS state
     """
-
+    # Configure logging
+    logger = logging.getLogger("poller")
+    logger.setLevel(logging.INFO)
     # Initialize AWS clients
     dynamodb = boto3.resource("dynamodb")
 
@@ -51,8 +49,8 @@ def lambda_handler(_, __):
     pending_items = response.get("Items", []) + in_progress_response.get("Items", [])
     logger.debug("Found %d pending jobs", len(pending_items))
 
-    provider = get_provider()
-    jobs = [Job.reconstruct(item) for item in pending_items]
+    provider = get_provider(logger)
+    jobs = [Job.reconstruct(item, logger) for item in pending_items]
 
     count = 0
     for job in jobs:

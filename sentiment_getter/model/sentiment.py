@@ -10,11 +10,6 @@ from model.job import Job
 from model.post import Post
 from supabase import create_client, Client
 
-# Configure logging
-logger = logging.getLogger()
-logger.setLevel(logging.INFO)
-
-
 @dataclass
 class Sentiment:
     """Sentiment for a post."""
@@ -26,6 +21,12 @@ class Sentiment:
     positive: float
     negative: float
     neutral: float
+    logger: logging.Logger | None = None
+
+    def __post_init__(self):
+        if self.logger is None:
+            self.logger = logging.getLogger()
+            self.logger.setLevel(logging.INFO)
 
     def sync_supabase(self):
         """Sync the sentiment to Supabase. Returns the number of records upserted."""
@@ -48,7 +49,7 @@ class Sentiment:
             "sentiment_score_negative": self.negative,
             "job_id": self.job.job_id,
         }
-        logger.debug("Upserting record: %s", json.dumps(record, indent=4))
+        self.logger.debug("Upserting record: %s", json.dumps(record, indent=4))
 
         result = (
             supabase.table("sentiment_results")
@@ -56,7 +57,7 @@ class Sentiment:
             .execute()
         )
         if result.count is not None:
-            logger.debug("Successfully upserted %d records in Supabase", result.count)
+            self.logger.debug("Successfully upserted %d records in Supabase", result.count)
             return result.count
 
         return len(result.data)

@@ -8,10 +8,6 @@ from datetime import datetime
 from model.post import Post
 from providers.provider_factory import get_provider
 
-# Configure logging
-logger = logging.getLogger()
-logger.setLevel(logging.INFO)
-
 def lambda_handler(event, _):
     """
     Create a sentiment analysis job for posts from multiple scrapers.
@@ -22,6 +18,9 @@ def lambda_handler(event, _):
     Returns:
         Dict containing job information
     """
+    # Configure logging
+    logger = logging.getLogger("job creator")
+    logger.setLevel(logging.INFO)
     logger.debug(
         "Creating sentiment analysis job with parameters: %s", json.dumps(event)
     )
@@ -37,7 +36,7 @@ def lambda_handler(event, _):
         return {"statusCode": 404, "body": json.dumps("No posts to analyze")}
 
     job_name = f"job_{datetime.now().strftime("%Y%m%d_%H%M%S")}"
-    provider = get_provider()
+    provider = get_provider(logger)
     job = provider.create_sentiment_job(posts, job_name)
     job.persist()
 

@@ -3,13 +3,22 @@ Abstract interface for sentiment analysis providers.
 """
 
 from abc import ABC, abstractmethod
+import logging
 from model.job import Job
 from model.post import Post
 from model.sentiment import Sentiment
 
-
 class SentimentProvider(ABC):
     """Base interface for sentiment analysis providers."""
+
+    logger: logging.Logger | None = None
+
+    def __init__(self, logger: logging.Logger | None = None):
+        if logger is None:
+            self.logger = logging.getLogger()
+            self.logger.setLevel(logging.INFO)
+        else:
+            self.logger = logger
 
     @abstractmethod
     def create_sentiment_job(self, posts: list[Post], job_name: str) -> Job:

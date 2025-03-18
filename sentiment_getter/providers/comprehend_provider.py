@@ -3,7 +3,6 @@ AWS Comprehend implementation of the sentiment provider.
 """
 
 import os
-import logging
 import json
 import io
 import tarfile
@@ -14,10 +13,6 @@ from model.job import Job
 from model.post import Post
 from model.sentiment import Sentiment
 from providers.sentiment_provider import SentimentProvider
-
-# Configure logging
-logger = logging.getLogger()
-logger.setLevel(logging.INFO)
 
 
 class ComprehendProvider(SentimentProvider):
@@ -62,7 +57,7 @@ class ComprehendProvider(SentimentProvider):
             job_id=response["JobId"],
             job_name=job_name,
             status="SUBMITTED",
-            created_at=datetime.now().isoformat(),
+            created_at=datetime.now(),
             posts=posts,
             provider=self.get_provider_name(),
         )
@@ -97,11 +92,11 @@ class ComprehendProvider(SentimentProvider):
 
         # Extract the output key from the S3 URI
         output_key = output_s3_uri.replace(f"s3://{bucket_name}/", "")
-        logger.info("Retrieving output file from: %s", output_key)
+        self.logger.info("Retrieving output file from: %s", output_key)
 
         # Get output file
         response = s3.get_object(Bucket=bucket_name, Key=output_key)
-        logger.info("Successfully retrieved output file")
+        self.logger.info("Successfully retrieved output file")
 
         # Extract and process results
         with tarfile.open(

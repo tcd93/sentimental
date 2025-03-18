@@ -7,10 +7,6 @@ from datetime import datetime
 import requests
 from model.post import Post
 
-# Configure logging
-logger = logging.getLogger()
-logger.setLevel(logging.INFO)
-
 STEAM_API_URL = "https://store.steampowered.com/api/storesearch"
 STEAM_REVIEWS_API_URL = "https://store.steampowered.com/appreviews/{app_id}"
 
@@ -36,7 +32,13 @@ def get_app_id(game_name):
     return None
 
 
-def get_steam_reviews(keyword, time_filter="day", sort="top", post_limit=6) -> list[Post]:
+def get_steam_reviews(
+    keyword,
+    time_filter="day",
+    sort="top",
+    post_limit=6,
+    logger: logging.Logger | None = None,
+) -> list[Post]:
     """
     Get Steam reviews for a game.
 
@@ -51,7 +53,8 @@ def get_steam_reviews(keyword, time_filter="day", sort="top", post_limit=6) -> l
     """
     app_id = get_app_id(keyword)
     if not app_id:
-        logger.error("Could not find Steam app ID for game: %s", keyword)
+        if logger:
+            logger.error("Could not find Steam app ID for game: %s", keyword)
         return []
 
     # Convert time filter to Steam's format
@@ -85,7 +88,8 @@ def get_steam_reviews(keyword, time_filter="day", sort="top", post_limit=6) -> l
     data = response.json()
 
     if not data.get("success", 0):
-        logger.error("Failed to get reviews for app %s", app_id)
+        if logger:
+            logger.error("Failed to get reviews for app %s", app_id)
         return []
 
     posts = []
