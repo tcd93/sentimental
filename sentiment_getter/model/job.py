@@ -168,16 +168,16 @@ class Job:
 
     def persist(self):
         """
-        Persist the Job info to database (current: DynamoDB).
-        The actual posts are stored in S3 (/posts/[post_id].json)
+        Persist the Job metadata and posts info to database and S3.
+        You might want to call `persist_main` instead.
         """
         logger.info("Persisting job ID: %s", self.job_id)
-        self._persist_main()
+        self.persist_meta()
         self._persist_posts()
 
-    def _persist_main(self):
+    def persist_meta(self):
         """
-        Persist the Job info to database (current: DynamoDB).
+        Persist the Job info to database.
         """
         dynamodb = boto3.resource("dynamodb")
         jobs_table = dynamodb.Table(os.environ["JOBS_TABLE_NAME"])

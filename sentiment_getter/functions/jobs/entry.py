@@ -59,17 +59,17 @@ def lambda_handler(_, __):
         provider.query_and_update_job(job)
 
         if job.status == "COMPLETED":
-            job.persist()
+            job.persist_meta()
             sentiments = provider.process_completed_job(job)
             if sentiments:
                 job.status = "DB_SYNCING"
-                job.persist()
+                job.persist_meta()
 
                 for sentiment in sentiments:
                     count += sentiment.sync_supabase()
 
                 job.status = "DB_SYNCED"
-                job.persist()
+                job.persist_meta()
 
     return {
         "statusCode": 200,
