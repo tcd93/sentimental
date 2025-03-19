@@ -26,7 +26,7 @@ Resources:
   KeywordPipeline:
     Type: AWS::Serverless::StateMachine
     Properties:
-      Type: EXPRESS
+      Type: STANDARD
       Logging:
         Level: ALL
         IncludeExecutionData: true
