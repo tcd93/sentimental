@@ -5,7 +5,7 @@ Lambda function to scrape Steam reviews for sentiment analysis.
 import json
 import logging
 
-from functions.steam.scraper import get_steam_reviews
+from functions.scrapers.steam.scraper import get_steam_reviews
 
 SOURCE = "steam"  # Define source for this scraper
 

@@ -5,7 +5,7 @@ Lambda function to scrape Reddit posts for sentiment analysis.
 import json
 import logging
 
-from functions.reddit.scrapper import get_reddit_posts
+from functions.scrapers.reddit.scrapper import get_reddit_posts
 
 SOURCE = "reddit"  # Define source for this scraper
 
