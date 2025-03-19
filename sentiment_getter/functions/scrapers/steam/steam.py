@@ -5,7 +5,9 @@ Lambda function to scrape Steam reviews for sentiment analysis.
 import json
 import logging
 
+from functions.scrapers.store_post_s3 import store_post_s3
 from functions.scrapers.steam.scraper import get_steam_reviews
+from providers.provider_factory import get_provider
 
 SOURCE = "steam"  # Define source for this scraper
 
@@ -33,12 +35,9 @@ def lambda_handler(event, _):
         sort=event.get("sort", "hot"),
         time_filter=event.get("time_filter", "day"),
         post_limit=event.get("post_limit", 10),
+        logger=logger,
     )
 
     logger.info("Found %d reviews matching criteria", len(posts))
 
-    # Return posts for sentiment analysis
-    return [
-        post.to_json()
-        for post in posts
-    ]
+    return store_post_s3(posts, get_provider(logger).get_provider_name())

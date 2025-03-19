@@ -4,14 +4,14 @@ import unittest
 import os
 from unittest.mock import patch, MagicMock
 from datetime import datetime
-from functions.steam.scraper import get_app_id, get_steam_reviews
+from functions.scrapers.steam.scraper import get_app_id, get_steam_reviews
 from model.post import Post
 
 
 class TestSteamScrapper(unittest.TestCase):
     """Unit tests for Steam scrapper functionality."""
 
-    @patch("functions.steam.scraper.requests.get")
+    @patch("functions.scrapers.steam.scraper.requests.get")
     def test_get_app_id(self, mock_get):
         """Test that the get_app_id function returns a valid app ID."""
         # Mock the response from Steam API
@@ -35,8 +35,8 @@ class TestSteamScrapper(unittest.TestCase):
         result = get_app_id("NonexistentGame12345")
         self.assertIsNone(result)
 
-    @patch("functions.steam.scraper.get_app_id")
-    @patch("functions.steam.scraper.requests.get")
+    @patch("functions.scrapers.steam.scraper.get_app_id")
+    @patch("functions.scrapers.steam.scraper.requests.get")
     def test_get_steam_reviews(self, mock_get, mock_get_app_id):
         """Test that the get_steam_reviews function returns a list of posts."""
         # Mock the app ID

@@ -5,7 +5,9 @@ Lambda function to scrape Reddit posts for sentiment analysis.
 import json
 import logging
 
+from functions.scrapers.store_post_s3 import store_post_s3
 from functions.scrapers.reddit.scrapper import get_reddit_posts
+from providers.provider_factory import get_provider
 
 SOURCE = "reddit"  # Define source for this scraper
 
@@ -36,15 +38,9 @@ def lambda_handler(event, _):
         time_filter=event.get("time_filter", "day"),
         post_limit=event.get("post_limit", 10),
         top_comments_limit=event.get("top_comments_limit", 10),
+        logger=logger,
     )
 
     logger.info("Found %d posts matching criteria", len(posts))
 
-    if not posts:
-        return []
-
-    # Return posts for sentiment analysis
-    return [
-        post.to_json()
-        for post in posts
-    ]
+    return store_post_s3(posts, get_provider(logger).get_provider_name())

@@ -3,7 +3,7 @@
 import unittest
 import os
 from dotenv import load_dotenv
-from functions.reddit.scrapper import (
+from functions.scrapers.reddit.scrapper import (
     get_reddit_posts,
     get_subreddits_from_chatgpt,
     get_openai_client,

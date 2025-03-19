@@ -2,8 +2,9 @@
 This module contains the Post class, which is used to represent a post on a social media platform.
 """
 
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass
 from datetime import datetime
+import logging
 import json
 import os
 import boto3
@@ -22,6 +23,12 @@ class Post:
     body: str
     comments: list[str]
     post_url: str = ""  # Optional URL to the original post
+    logger: logging.Logger | None = None
+
+    def __post_init__(self):
+        if self.logger is None:
+            self.logger = logging.getLogger()
+            self.logger.setLevel(logging.INFO)
 
     def get_text(self) -> str:
         """
@@ -40,11 +47,19 @@ class Post:
 
     def to_dict(self) -> dict:
         """Convert Post to dictionary for serialization."""
-        result = asdict(self)
-        # Convert datetime to ISO format string
-        if isinstance(result["created_at"], datetime):
-            result["created_at"] = result["created_at"].isoformat()
-        return result
+        return {
+            "id": self.id,
+            "keyword": self.keyword,
+            "source": self.source,
+            "title": self.title,
+            "created_at": (
+                self.created_at.isoformat()
+                if isinstance(self.created_at, datetime)
+                else self.created_at
+            ),
+            "body": self.body,
+            "comments": self.comments,
+        }
 
     def to_json(self) -> str:
         """Convert Post to JSON string."""
@@ -72,12 +87,19 @@ class Post:
             Body=self.to_json(),
             ContentType="application/json",
         )
+        self.logger.debug("Persisted key %s to S3", f"{provider}/posts/{self.id}.json")
 
     # construct Post from s3
     @classmethod
-    def from_s3(cls, post_id: str, provider: str) -> "Post":
+    def from_s3(
+        cls, post_id: str, provider: str, logger: logging.Logger | None = None
+    ) -> "Post":
         """Construct Post from S3"""
         s3 = boto3.client("s3")
+        if logger is None:
+            logger = logging.getLogger()
+            logger.setLevel(logging.INFO)
+        logger.debug("Fetching key %s", f"{provider}/posts/{post_id}.json")
         response = s3.get_object(
             Bucket=os.environ["S3_BUCKET_NAME"], Key=f"{provider}/posts/{post_id}.json"
         )

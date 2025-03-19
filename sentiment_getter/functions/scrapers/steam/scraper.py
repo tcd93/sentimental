@@ -109,6 +109,7 @@ def get_steam_reviews(
                 "https://steamcommunity.com/profiles/"
                 f"{review['author']['steamid']}/recommended/{app_id}/"
             ),
+            logger=logger,
         )
         posts.append(post)
 
