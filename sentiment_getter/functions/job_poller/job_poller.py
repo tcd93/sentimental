@@ -75,7 +75,4 @@ def lambda_handler(_, __):
                 job.status = "DB_SYNCED"
                 job.persist()
 
-    return {
-        "statusCode": 200,
-        "body": f"Jobs processed successfully. {count} records upserted.",
-    }
+    return {"message": f"Jobs processed successfully. {count} records upserted."}

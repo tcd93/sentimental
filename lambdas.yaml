@@ -11,6 +11,7 @@ Parameters:
   OpenAIApiKey:
     Type: String
     NoEcho: true
+    Default: ""
   SupabaseUrl:
     Type: String
   SupabaseKey:
@@ -179,15 +180,15 @@ Resources:
             Schedule: rate(1 minute)
 
 Outputs:
-  RedditScraperFunctionArn:
-    Description: Reddit scraper function ARN
-    Value: !GetAtt RedditScraperFunction.Arn
-  SteamScraperFunctionArn:
-    Description: Steam scraper function ARN
-    Value: !GetAtt SteamScraperFunction.Arn
-  SentimentJobCreatorFunctionArn:
-    Description: Sentiment job creator function ARN
-    Value: !GetAtt SentimentJobCreatorFunction.Arn
-  JobPollerFunctionArn:
-    Description: Job poller function ARN
-    Value: !GetAtt JobPollerFunction.Arn
+  RedditScraperFunctionName:
+    Description: Reddit scraper function name
+    Value: !Ref RedditScraperFunction
+  SteamScraperFunctionName:
+    Description: Steam scraper function name
+    Value: !Ref SteamScraperFunction
+  SentimentJobCreatorFunctionName:
+    Description: Sentiment job creator function name
+    Value: !Ref SentimentJobCreatorFunction
+  JobPollerFunctionName:
+    Description: Job poller function name
+    Value: !Ref JobPollerFunction

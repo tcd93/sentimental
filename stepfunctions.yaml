@@ -3,14 +3,18 @@ Transform: AWS::Serverless-2016-10-31
 Description: Step Functions for Sentiment Analysis
 
 Parameters:
-  RedditScraperArn:
+  RedditScraperName:
     Type: String
-  SteamScraperArn:
+    Description: Name of the Reddit scraper Lambda function
+  SteamScraperName:
     Type: String
-  SentimentJobCreatorArn:
+    Description: Name of the Steam scraper Lambda function
+  SentimentJobCreatorName:
     Type: String
+    Description: Name of the sentiment job creator Lambda function
   ErrorTopicName:
     Type: String
+    Description: Name of the SNS topic for error notifications
 
 Resources:
   StepFunctionsLogGroup:
@@ -31,14 +35,12 @@ Resources:
               LogGroupArn: !GetAtt StepFunctionsLogGroup.Arn
       Policies:
         - CloudWatchLogsFullAccess
-        - Version: '2012-10-17'
-          Statement:
-            - Effect: Allow
-              Action: lambda:InvokeFunction
-              Resource:
-                - !Ref RedditScraperArn
-                - !Ref SteamScraperArn
-                - !Ref SentimentJobCreatorArn
+        - LambdaInvokePolicy:
+            FunctionName: !Ref RedditScraperName
+        - LambdaInvokePolicy:
+            FunctionName: !Ref SteamScraperName
+        - LambdaInvokePolicy:
+            FunctionName: !Ref SentimentJobCreatorName
         - SNSPublishMessagePolicy:
             TopicName: !Ref ErrorTopicName
       Definition:
@@ -52,13 +54,17 @@ Resources:
                   ProcessRedditTasks:
                     Type: Map
                     InputPath: $.source.reddit
-                    MaxConcurrency: 10
+                    MaxConcurrency: 40
                     Iterator:
                       StartAt: RedditScraper
                       States:
                         RedditScraper:
                           Type: Task
-                          Resource: !Ref RedditScraperArn
+                          Resource: "arn:aws:states:::lambda:invoke"
+                          Parameters:
+                            FunctionName: !Ref RedditScraperName
+                            Payload.$: "$"
+                          OutputPath: "$.Payload"
                           End: true
                     End: true
                     # FLatten [[], [], []...] to [..., ..., ...]
@@ -68,13 +74,17 @@ Resources:
                   ProcessSteamTasks:
                     Type: Map
                     InputPath: $.source.steam
-                    MaxConcurrency: 10
+                    MaxConcurrency: 40
                     Iterator:
                       StartAt: SteamScraper
                       States:
                         SteamScraper:
                           Type: Task
-                          Resource: !Ref SteamScraperArn
+                          Resource: "arn:aws:states:::lambda:invoke"
+                          Parameters:
+                            FunctionName: !Ref SteamScraperName
+                            Payload.$: "$"
+                          OutputPath: "$.Payload"
                           End: true
                     End: true
                     # FLatten [[], [], []...] to [..., ..., ...]
@@ -83,7 +93,11 @@ Resources:
             Next: CreateSentimentJob
           CreateSentimentJob:
             Type: Task
-            Resource: !Ref SentimentJobCreatorArn
+            Resource: "arn:aws:states:::lambda:invoke"
+            Parameters:
+              FunctionName: !Ref SentimentJobCreatorName
+              Payload.$: "$"
+            OutputPath: "$.Payload"
             End: true
       # Add the Events section directly to the StateMachine
       Events:

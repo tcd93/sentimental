@@ -1,6 +1,6 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
-Description: Master template for Sentiment Analysis Pipeline
+Description: Main template for Sentiment Analysis Pipeline
 
 Parameters:
   RedditClientId:
@@ -13,6 +13,7 @@ Parameters:
   OpenAIApiKey:
     Type: String
     NoEcho: true
+    Default: ""
   SupabaseUrl:
     Type: String
   SupabaseKey:
@@ -48,15 +49,12 @@ Resources:
     Properties:
       TemplateURL: stepfunctions.yaml
       Parameters:
-        RedditScraperArn: !GetAtt LambdaStack.Outputs.RedditScraperFunctionArn
-        SteamScraperArn: !GetAtt LambdaStack.Outputs.SteamScraperFunctionArn
-        SentimentJobCreatorArn: !GetAtt LambdaStack.Outputs.SentimentJobCreatorFunctionArn
+        RedditScraperName: !GetAtt LambdaStack.Outputs.RedditScraperFunctionName
+        SteamScraperName: !GetAtt LambdaStack.Outputs.SteamScraperFunctionName
+        SentimentJobCreatorName: !GetAtt LambdaStack.Outputs.SentimentJobCreatorFunctionName
         ErrorTopicName: !GetAtt InfrastructureStack.Outputs.ErrorTopicName
 
 Outputs:
   StateMachineArn:
-    Description: State machine ARN
+    Description: Step Functions State Machine ARN
     Value: !GetAtt StepFunctionsStack.Outputs.StateMachineArn
-  ScraperFunctionArn:
-    Description: Reddit scraper function ARN
-    Value: !GetAtt LambdaStack.Outputs.RedditScraperFunctionArn
