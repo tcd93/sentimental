@@ -40,7 +40,7 @@ class SentimentProvider(ABC):
         """
 
     @abstractmethod
-    def query_and_update_job(self, job: Job):
+    def query_and_update_job(self, job: Job) -> Job:
         """
         Check the status of a sentiment analysis job from provider's API
         and update the job object with the new status and provider data.

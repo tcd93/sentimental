@@ -65,21 +65,21 @@ class ComprehendProvider(SentimentProvider):
 
         return job
 
-    def query_and_update_job(self, job: Job):
+    def query_and_update_job(self, job: Job) -> Job:
         comprehend = boto3.client("comprehend")
         job_details = comprehend.describe_sentiment_detection_job(JobId=job.job_id)
         # SUBMITTED | IN_PROGRESS | COMPLETED | FAILED | STOP_REQUESTED | STOPPED
         status = job_details["SentimentDetectionJobProperties"]["JobStatus"]
         if status == "COMPLETED":
             job.status = "COMPLETED"
-            return True
+            return job
         if status in ["STOP_REQUESTED", "STOPPED", "FAILED"]:
             job.status = "FAILED"
-            return False
+            return job
         if status == "IN_PROGRESS":
             job.status = "IN_PROGRESS"
-            return False
-        return False
+            return job
+        return job
 
     def process_completed_job(self, job: Job, posts: list[Post]) -> list[Sentiment]:
         s3 = boto3.client("s3")

@@ -7,7 +7,6 @@ import logging
 
 from functions.scrapers.store_post_s3 import store_post_s3
 from functions.scrapers.reddit.scrapper import get_reddit_posts
-from providers.provider_factory import get_provider
 
 SOURCE = "reddit"  # Define source for this scraper
 
@@ -43,4 +42,4 @@ def lambda_handler(event, _):
 
     logger.info("Found %d posts matching criteria", len(posts))
 
-    return store_post_s3(posts, get_provider(logger).get_provider_name())
+    return store_post_s3(posts)

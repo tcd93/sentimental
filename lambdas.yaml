@@ -149,35 +149,70 @@ Resources:
                 StringEquals:
                   iam:PassedToService: comprehend.amazonaws.com
 
-  JobPollerFunction:
+  # JobPollerFunction:
+  #   Type: AWS::Serverless::Function
+  #   Properties:
+  #     CodeUri: sentiment_getter/
+  #     Handler: functions/job_poller/job_poller.lambda_handler
+  #     Runtime: python3.12
+  #     MemorySize: 256
+  #     Timeout: 300
+  #     Layers:
+  #       - !Ref PythonDependenciesLayer
+  #     LoggingConfig:
+  #       LogGroup: !Ref JobPollerLogGroup
+  #     Environment:
+  #       Variables:
+  #         JOBS_TABLE_NAME: !Ref SentimentJobTableName
+  #         S3_BUCKET_NAME: !Ref BucketName
+  #         OPENAI_API_KEY: !Ref OpenAIApiKey
+  #         SUPABASE_URL: !Ref SupabaseUrl
+  #         SUPABASE_KEY: !Ref SupabaseKey
+  #     Policies:
+  #       - DynamoDBCrudPolicy:
+  #           TableName: !Ref SentimentJobTableName
+  #       - S3CrudPolicy:
+  #           BucketName: !Ref BucketName
+
+  SyncPostToSupabaseFunction:
     Type: AWS::Serverless::Function
     Properties:
       CodeUri: sentiment_getter/
-      Handler: functions/job_poller/job_poller.lambda_handler
+      Handler: functions/job_poller/sync_post_to_supabase.lambda_handler
       Runtime: python3.12
-      MemorySize: 256
-      Timeout: 300
+      Timeout: 60
       Layers:
         - !Ref PythonDependenciesLayer
       LoggingConfig:
         LogGroup: !Ref JobPollerLogGroup
       Environment:
         Variables:
-          JOBS_TABLE_NAME: !Ref SentimentJobTableName
           S3_BUCKET_NAME: !Ref BucketName
-          OPENAI_API_KEY: !Ref OpenAIApiKey
           SUPABASE_URL: !Ref SupabaseUrl
           SUPABASE_KEY: !Ref SupabaseKey
+          JOBS_TABLE_NAME: !Ref SentimentJobTableName
+          OPENAI_API_KEY: !Ref OpenAIApiKey
       Policies:
-        - DynamoDBCrudPolicy:
-            TableName: !Ref SentimentJobTableName
         - S3CrudPolicy:
             BucketName: !Ref BucketName
-      Events:
-        ScheduleEvent:
-          Type: Schedule
-          Properties:
-            Schedule: rate(1 minute)
+        - DynamoDBCrudPolicy:
+            TableName: !Ref SentimentJobTableName
+
+  GetJobStatusFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: sentiment_getter/
+      Handler: functions/job_poller/get_job_status.lambda_handler
+      Runtime: python3.12
+      Timeout: 60
+      Layers:
+        - !Ref PythonDependenciesLayer
+      LoggingConfig:
+        LogGroup: !Ref JobPollerLogGroup
+      Environment:
+        Variables:
+          S3_BUCKET_NAME: !Ref BucketName
+          OPENAI_API_KEY: !Ref OpenAIApiKey
 
 Outputs:
   RedditScraperFunctionName:
@@ -189,6 +224,9 @@ Outputs:
   SentimentJobCreatorFunctionName:
     Description: Sentiment job creator function name
     Value: !Ref SentimentJobCreatorFunction
-  JobPollerFunctionName:
-    Description: Job poller function name
-    Value: !Ref JobPollerFunction
+  GetJobStatusFunctionName:
+    Description: Job status checker function name
+    Value: !Ref GetJobStatusFunction
+  SyncPostToSupabaseFunctionName:
+    Description: Sync post to Supabase function name
+    Value: !Ref SyncPostToSupabaseFunction

@@ -60,7 +60,7 @@ def lambda_handler(_, __):
         if job.status == "COMPLETED":
             job.persist()
             posts = [
-                Post.from_s3(post_id, provider.get_provider_name())
+                Post.from_s3(post_id, logger)
                 for post_id in job.post_ids
             ]
 

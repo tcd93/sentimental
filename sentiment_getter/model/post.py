@@ -78,29 +78,29 @@ class Post:
         """Create Post from JSON string."""
         return cls.from_dict(json.loads(json_str))
 
-    def persist(self, provider: str):
+    def persist(self):
         """Persist the Post to S3"""
         s3 = boto3.client("s3")
         s3.put_object(
             Bucket=os.environ["S3_BUCKET_NAME"],
-            Key=f"{provider}/posts/{self.id}.json",
+            Key=f"posts/{self.id}.json",
             Body=self.to_json(),
             ContentType="application/json",
         )
-        self.logger.debug("Persisted key %s to S3", f"{provider}/posts/{self.id}.json")
+        self.logger.debug("Persisted key %s to S3", f"posts/{self.id}.json")
 
     # construct Post from s3
     @classmethod
     def from_s3(
-        cls, post_id: str, provider: str, logger: logging.Logger | None = None
+        cls, post_id: str, logger: logging.Logger | None = None
     ) -> "Post":
         """Construct Post from S3"""
         s3 = boto3.client("s3")
         if logger is None:
             logger = logging.getLogger()
             logger.setLevel(logging.INFO)
-        logger.debug("Fetching key %s", f"{provider}/posts/{post_id}.json")
+        logger.debug("Fetching key %s", f"posts/{post_id}.json")
         response = s3.get_object(
-            Bucket=os.environ["S3_BUCKET_NAME"], Key=f"{provider}/posts/{post_id}.json"
+            Bucket=os.environ["S3_BUCKET_NAME"], Key=f"posts/{post_id}.json"
         )
         return cls.from_json(response["Body"].read().decode("utf-8"))

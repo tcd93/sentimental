@@ -52,6 +52,9 @@ Resources:
         RedditScraperName: !GetAtt LambdaStack.Outputs.RedditScraperFunctionName
         SteamScraperName: !GetAtt LambdaStack.Outputs.SteamScraperFunctionName
         SentimentJobCreatorName: !GetAtt LambdaStack.Outputs.SentimentJobCreatorFunctionName
+        GetJobStatusName: !GetAtt LambdaStack.Outputs.GetJobStatusFunctionName
+        SyncPostToSupabaseName: !GetAtt LambdaStack.Outputs.SyncPostToSupabaseFunctionName
+        BucketName: !Ref BucketName
         ErrorTopicName: !GetAtt InfrastructureStack.Outputs.ErrorTopicName
 
 Outputs:

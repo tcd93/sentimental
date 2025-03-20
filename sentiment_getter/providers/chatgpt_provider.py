@@ -99,7 +99,7 @@ class ChatGPTProvider(SentimentProvider):
             logger=self.logger,
         )
 
-    def query_and_update_job(self, job: Job):
+    def query_and_update_job(self, job: Job) -> Job:
         batch_id = job.provider_data.openai_batch_id
 
         batch_response = openai.batches.retrieve(batch_id)
@@ -118,15 +118,15 @@ class ChatGPTProvider(SentimentProvider):
                 error_file_id=batch_response.error_file_id,
             )
             job.status = "COMPLETED"
-            return True
+            return job
         if openai_status in ["failed", "cancelling", "cancelled", "expired"]:
             self.logger.error("OpenAI batch job %s: %s", openai_status, batch_response)
             job.status = "FAILED"
-            return False
+            return job
         if openai_status == "in_progress":
             job.status = "IN_PROGRESS"
-            return False
-        return False
+            return job
+        return job
 
     def process_completed_job(self, job: Job, posts: list[Post]) -> list[Sentiment]:
         if job.provider_data.error_file_id:

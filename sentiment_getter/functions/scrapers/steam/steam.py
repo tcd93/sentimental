@@ -7,7 +7,6 @@ import logging
 
 from functions.scrapers.store_post_s3 import store_post_s3
 from functions.scrapers.steam.scraper import get_steam_reviews
-from providers.provider_factory import get_provider
 
 SOURCE = "steam"  # Define source for this scraper
 
@@ -40,4 +39,4 @@ def lambda_handler(event, _):
 
     logger.info("Found %d reviews matching criteria", len(posts))
 
-    return store_post_s3(posts, get_provider(logger).get_provider_name())
+    return store_post_s3(posts)

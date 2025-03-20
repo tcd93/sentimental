@@ -30,25 +30,20 @@ def lambda_handler(event, _):
     if not isinstance(event, list):
         raise ValueError("Invalid input format: event must be a list")
 
-    provider = get_provider(logger)
+    provider = get_provider(logger = logger)
 
     posts: list[Post] = [
-        Post.from_s3(post_id, provider.get_provider_name(), logger) for post_id in event
+        Post.from_s3(post_id, logger) for post_id in event
     ]
 
     if not posts or len(posts) == 0:
-        return {"message": "No posts to analyze"}
+        raise ValueError("No posts to analyze")
+
+    # there might be posts with the same id, remove dupplicates by post id
+    posts = list({post.id: post for post in posts}.values())
 
     job_name = f"job_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
     job = provider.create_sentiment_job(posts, job_name)
     job.persist()
 
-    return {
-        "message": (
-            f"Started sentiment analysis for {len(posts)} posts "
-            f"using {provider.get_provider_name()}"
-        ),
-        "job_id": job.job_id,
-        "job_name": job_name,
-        "provider": provider.get_provider_name(),
-    }
+    return job.to_dict()
