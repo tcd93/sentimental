@@ -47,7 +47,7 @@ class ComprehendProvider(SentimentProvider):
                 "S3Uri": f"s3://{bucket_name}/{input_key}",
                 "InputFormat": "ONE_DOC_PER_LINE",
             },
-            OutputDataConfig={"S3Uri": f"s3://{bucket_name}/comprehend-jobs/output/"},
+            OutputDataConfig={"S3Uri": f"s3://{bucket_name}/comprehend/jobs/output/"},
             DataAccessRoleArn=os.environ["COMPREHEND_ROLE_ARN"],
             JobName=job_name,
             LanguageCode="en",
