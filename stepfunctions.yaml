@@ -24,6 +24,9 @@ Parameters:
   ErrorTopicName:
     Type: String
     Description: Name of the SNS topic for error notifications
+  ErrorTopicArn:
+    Type: String
+    Description: ARN of the SNS topic for error notifications
 
 Resources:
   KeywordPipelineLogGroup :
@@ -111,6 +114,27 @@ Resources:
                         Mode: INLINE
                     End: true
                     OutputPath: $[*].posts[*].id
+                    Retry:
+                      - ErrorEquals:
+                          - States.TaskFailed
+                          - States.Timeout
+                        BackoffRate: 2
+                        IntervalSeconds: 20
+                        MaxAttempts: 3
+                        JitterStrategy: FULL
+                    Catch:
+                      - ErrorEquals:
+                          - States.TaskFailed
+                          - States.Timeout
+                        Next: SNSPublishRedditError
+                        ResultPath: $.error
+                  SNSPublishRedditError:
+                    Type: Task
+                    Resource: "arn:aws:states:::sns:publish"
+                    Parameters:
+                      TopicArn: !Ref ErrorTopicArn
+                      "Message.$": "$"
+                    End: true
               - StartAt: ProcessSteamTasks
                 States:
                   ProcessSteamTasks:
@@ -153,6 +177,27 @@ Resources:
                         Mode: INLINE
                     End: true
                     OutputPath: $[*].posts[*].id
+                    Retry:
+                      - ErrorEquals:
+                          - States.TaskFailed
+                          - States.Timeout
+                        BackoffRate: 2
+                        IntervalSeconds: 20
+                        MaxAttempts: 3
+                        JitterStrategy: FULL
+                    Catch:
+                      - ErrorEquals:
+                          - States.TaskFailed
+                          - States.Timeout
+                        Next: SNSPublishSteamError
+                        ResultPath: $.error
+                  SNSPublishSteamError:
+                    Type: Task
+                    Resource: "arn:aws:states:::sns:publish"
+                    Parameters:
+                      TopicArn: !Ref ErrorTopicArn
+                      "Message.$": "$"
+                    End: true
             OutputPath: $[*][*]
             Next: CreateSentimentJob
           CreateSentimentJob:

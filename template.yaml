@@ -56,6 +56,7 @@ Resources:
         SyncPostToSupabaseName: !GetAtt LambdaStack.Outputs.SyncPostToSupabaseFunctionName
         BucketName: !Ref BucketName
         ErrorTopicName: !GetAtt InfrastructureStack.Outputs.ErrorTopicName
+        ErrorTopicArn: !GetAtt InfrastructureStack.Outputs.ErrorTopicArn
 
 Outputs:
   KeywordPipelineArn:

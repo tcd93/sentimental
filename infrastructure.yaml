@@ -46,6 +46,9 @@ Outputs:
   ErrorTopicName:
     Description: SNS topic name for errors
     Value: !GetAtt ErrorTopic.TopicName
+  ErrorTopicArn:
+    Description: SNS topic ARN for errors
+    Value: !GetAtt ErrorTopic.TopicArn
   SentimentJobTableName:
     Description: DynamoDB table name
     Value: !Ref SentimentJobTable
