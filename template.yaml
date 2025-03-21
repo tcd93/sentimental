@@ -58,6 +58,9 @@ Resources:
         ErrorTopicName: !GetAtt InfrastructureStack.Outputs.ErrorTopicName
 
 Outputs:
-  StateMachineArn:
-    Description: Step Functions State Machine ARN
-    Value: !GetAtt StepFunctionsStack.Outputs.StateMachineArn
+  KeywordPipelineArn:
+    Description: Keyword Pipeline State Machine ARN
+    Value: !GetAtt StepFunctionsStack.Outputs.KeywordPipelineArn
+  JobProcessorPipelineArn:
+    Description: Job Processor Pipeline State Machine ARN
+    Value: !GetAtt StepFunctionsStack.Outputs.JobProcessorPipelineArn
