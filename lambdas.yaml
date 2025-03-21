@@ -149,31 +149,6 @@ Resources:
                 StringEquals:
                   iam:PassedToService: comprehend.amazonaws.com
 
-  # JobPollerFunction:
-  #   Type: AWS::Serverless::Function
-  #   Properties:
-  #     CodeUri: sentiment_getter/
-  #     Handler: functions/job_poller/job_poller.lambda_handler
-  #     Runtime: python3.12
-  #     MemorySize: 256
-  #     Timeout: 300
-  #     Layers:
-  #       - !Ref PythonDependenciesLayer
-  #     LoggingConfig:
-  #       LogGroup: !Ref JobPollerLogGroup
-  #     Environment:
-  #       Variables:
-  #         JOBS_TABLE_NAME: !Ref SentimentJobTableName
-  #         S3_BUCKET_NAME: !Ref BucketName
-  #         OPENAI_API_KEY: !Ref OpenAIApiKey
-  #         SUPABASE_URL: !Ref SupabaseUrl
-  #         SUPABASE_KEY: !Ref SupabaseKey
-  #     Policies:
-  #       - DynamoDBCrudPolicy:
-  #           TableName: !Ref SentimentJobTableName
-  #       - S3CrudPolicy:
-  #           BucketName: !Ref BucketName
-
   SyncPostToSupabaseFunction:
     Type: AWS::Serverless::Function
     Properties:

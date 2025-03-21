@@ -17,7 +17,7 @@ def lambda_handler(event, _):
     Note: Item batching is enabled so expect object with Item list.
     """
     logger = logging.getLogger()
-    logger.setLevel(logging.DEBUG)
+    logger.setLevel(logging.INFO)
     s3 = boto3.client("s3")
 
     items = event["Items"]
@@ -31,7 +31,7 @@ def lambda_handler(event, _):
 
     provider = get_provider(logger=logger, provider_name=job.provider)
 
-    posts = []
+    posts: list[Post] = []
     for item in items:
         # skip zero-byte file returned from ListObjectsV2
         if item["Size"] == 0:
@@ -52,4 +52,4 @@ def lambda_handler(event, _):
         job.persist()
 
     # return list of keys for deletion
-    return [{"Key": f"posts/{post.id}.json"} for post in posts]
+    return [{"Key": post.s3_key(post.id)} for post in posts]

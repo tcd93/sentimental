@@ -83,11 +83,11 @@ class Post:
         s3 = boto3.client("s3")
         s3.put_object(
             Bucket=os.environ["S3_BUCKET_NAME"],
-            Key=f"posts/{self.id}.json",
+            Key=self.s3_key(self.id),
             Body=self.to_json(),
             ContentType="application/json",
         )
-        self.logger.debug("Persisted key %s to S3", f"posts/{self.id}.json")
+        self.logger.debug("Persisted key %s to S3", self.s3_key(self.id))
 
     # construct Post from s3
     @classmethod
@@ -99,8 +99,13 @@ class Post:
         if logger is None:
             logger = logging.getLogger()
             logger.setLevel(logging.INFO)
-        logger.debug("Fetching key %s", f"posts/{post_id}.json")
+        logger.debug("Fetching key %s", cls.s3_key(post_id))
         response = s3.get_object(
-            Bucket=os.environ["S3_BUCKET_NAME"], Key=f"posts/{post_id}.json"
+            Bucket=os.environ["S3_BUCKET_NAME"], Key=cls.s3_key(post_id)
         )
         return cls.from_json(response["Body"].read().decode("utf-8"))
+
+    @staticmethod
+    def s3_key(post_id: str) -> str:
+        """Get the S3 key for the Post"""
+        return f"posts/{post_id}.json"
