@@ -5,7 +5,6 @@ Lambda function to scrape Reddit posts for sentiment analysis.
 import json
 import logging
 
-from functions.scrapers.store_post_s3 import store_post_s3
 from functions.scrapers.reddit.scrapper import get_reddit_posts
 
 SOURCE = "reddit"  # Define source for this scraper
@@ -14,13 +13,6 @@ SOURCE = "reddit"  # Define source for this scraper
 def lambda_handler(event, _):
     """
     Scrape Reddit posts and return them for sentiment analysis.
-
-    Args:
-        event: Dict containing search parameters
-        _: Lambda context
-
-    Returns:
-        Dict containing posts and metadata
     """
     logger = logging.getLogger("reddit scraper")
     logger.setLevel(logging.INFO)
@@ -41,5 +33,8 @@ def lambda_handler(event, _):
     )
 
     logger.info("Found %d posts matching criteria", len(posts))
-
-    return store_post_s3(posts)
+    return {
+        "posts": [post.to_dict() for post in posts],
+        "source": SOURCE,
+        "keyword": event["keyword"]
+    }

@@ -74,6 +74,9 @@ Resources:
                   ProcessRedditTasks:
                     Type: Map
                     InputPath: $.source.reddit
+                    ItemSelector:
+                      Key.$: States.Format('posts/{}.json', $.id)"
+                      Body.$: $$.Map.Item.Value
                     MaxConcurrency: 40
                     Iterator:
                       StartAt: RedditScraper
@@ -85,17 +88,37 @@ Resources:
                             FunctionName: !Ref RedditScraperName
                             Payload.$: "$"
                           OutputPath: "$.Payload"
+                          Next: StoreRedditPosts
+                        StoreRedditPosts:
+                          Type: Map
+                          ItemsPath: $.posts
+                          MaxConcurrency: 40
+                          Iterator:
+                            StartAt: StoreRedditPostToS3
+                            States:
+                              StoreRedditPostToS3:
+                                Type: Task
+                                Resource: "arn:aws:states:::aws-sdk:s3:putObject"
+                                Parameters:
+                                  Bucket: !Ref BucketName
+                                  Key.$: $.Key
+                                  Body.$: $.Body
+                                  ContentType: application/json
+                                End: true
+                          ResultPath: $.stored_posts
                           End: true
                       ProcessorConfig:
                         Mode: INLINE
                     End: true
-                    # FLatten [[], [], []...] to [..., ..., ...]
-                    OutputPath: $[*][*]
+                    OutputPath: $[*].posts[*].id
               - StartAt: ProcessSteamTasks
                 States:
                   ProcessSteamTasks:
                     Type: Map
                     InputPath: $.source.steam
+                    ItemSelector:
+                      Key.$: States.Format('posts/{}.json', $.id)"
+                      Body.$: $$.Map.Item.Value
                     MaxConcurrency: 40
                     Iterator:
                       StartAt: SteamScraper
@@ -107,12 +130,29 @@ Resources:
                             FunctionName: !Ref SteamScraperName
                             Payload.$: "$"
                           OutputPath: "$.Payload"
+                          Next: StoreSteamPosts
+                        StoreSteamPosts:
+                          Type: Map
+                          ItemsPath: "$.posts"
+                          MaxConcurrency: 40
+                          Iterator:
+                            StartAt: StoreSteamPostToS3
+                            States:
+                              StoreSteamPostToS3:
+                                Type: Task
+                                Resource: "arn:aws:states:::aws-sdk:s3:putObject"
+                                ItemSelector:
+                                  Bucket: !Ref BucketName
+                                  Key.$: $.Key
+                                  Body.$: $.Body
+                                  ContentType: application/json
+                                End: true
+                          ResultPath: "$.stored_posts"
                           End: true
                       ProcessorConfig:
                         Mode: INLINE
                     End: true
-                    # FLatten [[], [], []...] to [..., ..., ...]
-                    OutputPath: $[*][*]
+                    OutputPath: $[*].posts[*].id
             OutputPath: $[*][*]
             Next: CreateSentimentJob
           CreateSentimentJob:
