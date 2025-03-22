@@ -41,7 +41,7 @@ class ChatGPTProvider(SentimentProvider):
                     "method": "POST",
                     "url": "/v1/chat/completions",
                     "body": {
-                        "model": "gpt-3.5-turbo",
+                        "model": "gpt-4o-mini",
                         "messages": [
                             {
                                 "role": "system",
