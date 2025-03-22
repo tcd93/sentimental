@@ -113,6 +113,16 @@ Resources:
         - S3CrudPolicy:
             BucketName: !Ref BucketName
 
+  SplitResultFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: sentiment_getter/functions/job_creator/array_splitter/split_result.zip
+      Handler: bootstrap
+      Runtime: provided.al2
+      Timeout: 10
+      LoggingConfig:
+        LogGroup: !Ref SentimentJobCreatorLogGroup
+
   SentimentJobCreatorFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -205,3 +215,7 @@ Outputs:
   SyncPostToSupabaseFunctionName:
     Description: Sync post to Supabase function name
     Value: !Ref SyncPostToSupabaseFunction
+  SplitResultFunctionName:
+    Description: Split result function name
+    Value: !Ref SplitResultFunction
+
