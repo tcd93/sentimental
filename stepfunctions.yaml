@@ -87,7 +87,7 @@ Resources:
                     Type: Map
                     InputPath: $.source.reddit
                     MaxConcurrency: 40
-                    ToleratedFailurePercentage: 80
+                    ToleratedFailurePercentage: 40
                     Iterator:
                       ProcessorConfig:
                         Mode: DISTRIBUTED
@@ -108,8 +108,11 @@ Resources:
                           ItemSelector:
                             Key.$: States.Format('posts/{}.json', $$.Map.Item.Value.id)
                             Body.$: $$.Map.Item.Value
-                          # Returns only the id of the post to avoid payload size limit of Step Functions
-                          OutputPath: $.posts[*].id
+                          # output of the map:
+                          # [{"Body": {"id": "123"}, "Key": "posts/123.json"}]
+                          # transform to: {"success": ["123"]}
+                          ResultSelector:
+                            success.$: $[*].Body.id
                           MaxConcurrency: 40
                           Iterator:
                             StartAt: StoreRedditPostToS3
@@ -122,11 +125,10 @@ Resources:
                                   Key.$: $.Key
                                   Body.$: $.Body
                                   ContentType: application/json
+                                ResultPath: null # don't need stored status and keep original input
                                 End: true
-                          ResultPath: $.stored_posts
                           End: true
                     End: true
-                    OutputPath: $[*][*]
                     Retry:
                       - ErrorEquals:
                           - States.TaskFailed
@@ -153,7 +155,7 @@ Resources:
                   ProcessSteamTasks:
                     Type: Map
                     InputPath: $.source.steam
-                    ToleratedFailurePercentage: 80
+                    ToleratedFailurePercentage: 30
                     MaxConcurrency: 40
                     Iterator:
                       ProcessorConfig:
@@ -175,8 +177,9 @@ Resources:
                           ItemSelector:
                             Key.$: States.Format('posts/{}.json', $$.Map.Item.Value.id)
                             Body.$: $$.Map.Item.Value
-                          # Returns only the id of the post to avoid payload size limit of Step Functions
-                          OutputPath: $.posts[*].id
+                          # see StoreRedditPosts for explanation
+                          ResultSelector:
+                            success.$: $[*].Body.id
                           MaxConcurrency: 40
                           Iterator:
                             StartAt: StoreSteamPostToS3
@@ -189,11 +192,10 @@ Resources:
                                   Key.$: $.Key
                                   Body.$: $.Body
                                   ContentType: application/json
+                                ResultPath: null
                                 End: true
-                          ResultPath: "$.stored_posts"
                           End: true
                     End: true
-                    OutputPath: $[*][*]
                     Retry:
                       - ErrorEquals:
                           - States.TaskFailed
@@ -215,7 +217,13 @@ Resources:
                       TopicArn: !Ref ErrorTopicArn
                       "Message.$": "$"
                     End: true
-            OutputPath: $[*][*]
+            # output of the map: 
+            # (each branch returns a list object, then the map wrap it in another list)
+            # note that there are error objectts mixed in, as we defined ToleratedFailurePercentage to be 80
+            # [[{"success": ["123"]}, {"error: "timeout"}], [{"success": ["789"]}]...]
+            # transform to:
+            # ["123", "456", "789"]
+            OutputPath: $[*][*].success[*]
             Next: CreateSentimentJob
           CreateSentimentJob:
             Type: Task

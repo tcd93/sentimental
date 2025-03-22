@@ -179,7 +179,7 @@ Resources:
       CodeUri: sentiment_getter/
       Handler: functions/job_poller/get_job_status.lambda_handler
       Runtime: python3.12
-      Timeout: 60
+      Timeout: 90
       Layers:
         - !Ref PythonDependenciesLayer
       LoggingConfig:
