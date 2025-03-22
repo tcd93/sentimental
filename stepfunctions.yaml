@@ -27,12 +27,9 @@ Parameters:
   ErrorTopicArn:
     Type: String
     Description: ARN of the SNS topic for error notifications
-  KeywordsConfig:
-    Type: String
-    Description: JSON configuration for keywords to scrape
 
 Resources:
-  KeywordPipelineLogGroup :
+  KeywordPipelineLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName: !Sub /aws/vendedlogs/states/KeywordPipeline
@@ -70,8 +67,18 @@ Resources:
         - StepFunctionsExecutionPolicy:
             StateMachineName: !GetAtt JobProcessorPipeline.Name
       Definition:
-        StartAt: SelectScrapers
+        StartAt: GetConfiguration
         States:
+          GetConfiguration:
+            Type: Task
+            Resource: "arn:aws:states:::aws-sdk:s3:getObject"
+            Parameters:
+              Bucket: !Ref BucketName
+              Key: "config/keywords_config.json"
+            ResultSelector:
+              Json.$: "States.StringToJson($.Body)"
+            OutputPath: "$.Json"
+            Next: SelectScrapers
           SelectScrapers:
             Type: Parallel
             Branches:
@@ -224,7 +231,7 @@ Resources:
           Type: Schedule
           Properties:
             Schedule: rate(1 hour)
-            Input: !Ref KeywordsConfig
+            Input: "{}"  # Empty input, since we're loading from S3
 
   # Second pipeline - handles job processing
   JobProcessorPipeline:

@@ -79,7 +79,7 @@ Resources:
       CodeUri: sentiment_getter/
       Handler: functions/scrapers/reddit/reddit.lambda_handler
       Runtime: python3.12
-      Timeout: 45
+      Timeout: 60
       Layers:
         - !Ref PythonDependenciesLayer
       LoggingConfig:
@@ -119,7 +119,7 @@ Resources:
       CodeUri: sentiment_getter/
       Handler: functions/job_creator/job_creator.lambda_handler
       Runtime: python3.12
-      Timeout: 180
+      Timeout: 360
       Layers:
         - !Ref PythonDependenciesLayer
       LoggingConfig:
