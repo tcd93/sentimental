@@ -23,7 +23,7 @@ def lambda_handler(event, _):
     # Get reviews from Steam
     posts = get_steam_reviews(
         keyword=event["keyword"],
-        sort=event.get("sort", "hot"),
+        sort=event.get("sort", "top"),
         time_filter=event.get("time_filter", "day"),
         post_limit=event.get("post_limit", 10),
         logger=logger,

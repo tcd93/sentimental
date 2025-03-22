@@ -36,7 +36,7 @@ def get_steam_reviews(
     keyword,
     time_filter="day",
     sort="top",
-    post_limit=6,
+    post_limit=10,
     logger: logging.Logger | None = None,
 ) -> list[Post]:
     """

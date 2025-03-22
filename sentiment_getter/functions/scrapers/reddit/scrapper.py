@@ -102,10 +102,10 @@ def get_reddit_posts(**kwargs) -> list[Post]:
     """
     subreddits = kwargs.get("subreddits", [])
     keyword = kwargs["keyword"]
-    sort = kwargs.get("sort", "hot")
+    sort = kwargs.get("sort", "top")
     time_filter = kwargs.get("time_filter", "day")
-    post_limit = kwargs.get("post_limit", 10)
-    top_comments_limit = kwargs.get("top_comments_limit", 10)
+    post_limit = kwargs.get("post_limit", 7)
+    top_comments_limit = kwargs.get("top_comments_limit", 3)
     logger = kwargs.get("logger", None)
 
     # use chatgpt to suggest subreddits
