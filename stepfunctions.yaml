@@ -64,8 +64,7 @@ Resources:
             BucketName: !Ref BucketName
         - SNSPublishMessagePolicy:
             TopicName: !Ref ErrorTopicName
-        - StepFunctionsExecutionPolicy:
-            StateMachineName: !GetAtt JobProcessorPipeline.Name
+        - AWSStepFunctionsFullAccess
       Definition:
         StartAt: GetConfiguration
         States:
@@ -88,7 +87,11 @@ Resources:
                     Type: Map
                     InputPath: $.source.reddit
                     MaxConcurrency: 40
+                    ToleratedFailurePercentage: 80
                     Iterator:
+                      ProcessorConfig:
+                        Mode: DISTRIBUTED
+                        ExecutionType: EXPRESS
                       StartAt: RedditScraper
                       States:
                         RedditScraper:
@@ -105,6 +108,8 @@ Resources:
                           ItemSelector:
                             Key.$: States.Format('posts/{}.json', $$.Map.Item.Value.id)
                             Body.$: $$.Map.Item.Value
+                          # Returns only the id of the post to avoid payload size limit of Step Functions
+                          OutputPath: $.posts[*].id
                           MaxConcurrency: 40
                           Iterator:
                             StartAt: StoreRedditPostToS3
@@ -120,10 +125,8 @@ Resources:
                                 End: true
                           ResultPath: $.stored_posts
                           End: true
-                      ProcessorConfig:
-                        Mode: INLINE
                     End: true
-                    OutputPath: $[*].posts[*].id
+                    OutputPath: $[*][*]
                     Retry:
                       - ErrorEquals:
                           - States.TaskFailed
@@ -150,8 +153,12 @@ Resources:
                   ProcessSteamTasks:
                     Type: Map
                     InputPath: $.source.steam
+                    ToleratedFailurePercentage: 80
                     MaxConcurrency: 40
                     Iterator:
+                      ProcessorConfig:
+                        Mode: DISTRIBUTED
+                        ExecutionType: EXPRESS
                       StartAt: SteamScraper
                       States:
                         SteamScraper:
@@ -168,6 +175,8 @@ Resources:
                           ItemSelector:
                             Key.$: States.Format('posts/{}.json', $$.Map.Item.Value.id)
                             Body.$: $$.Map.Item.Value
+                          # Returns only the id of the post to avoid payload size limit of Step Functions
+                          OutputPath: $.posts[*].id
                           MaxConcurrency: 40
                           Iterator:
                             StartAt: StoreSteamPostToS3
@@ -183,10 +192,8 @@ Resources:
                                 End: true
                           ResultPath: "$.stored_posts"
                           End: true
-                      ProcessorConfig:
-                        Mode: INLINE
                     End: true
-                    OutputPath: $[*].posts[*].id
+                    OutputPath: $[*][*]
                     Retry:
                       - ErrorEquals:
                           - States.TaskFailed
@@ -209,22 +216,50 @@ Resources:
                       "Message.$": "$"
                     End: true
             OutputPath: $[*][*]
-            Next: CreateSentimentJob
-          CreateSentimentJob:
-            Type: Task
-            Resource: "arn:aws:states:::lambda:invoke"
-            Parameters:
-              FunctionName: !Ref SentimentJobCreatorName
-              Payload.$: "$"
-            OutputPath: "$.Payload"
-            Next: StartJobProcessor
-          StartJobProcessor:
-            Type: Task
-            Resource: "arn:aws:states:::states:startExecution"
-            Parameters:
-              StateMachineArn: !Ref JobProcessorPipeline
-              Input.$: "$"
+            Next: SplitResult
+          SplitResult:
+            Type: Parallel
             End: true
+            Branches:
+              - StartAt: CreateSentimentJob1
+                States:
+                  CreateSentimentJob1:
+                    Type: Task
+                    OutputPath: $.Payload
+                    Resource: "arn:aws:states:::lambda:invoke"
+                    Parameters:
+                      FunctionName: !Ref SentimentJobCreatorName
+                      Payload.$: $.inputArray[0..((count($.inputArray)/2)-1)]
+                    Next: StartJobProcessor1
+                  StartJobProcessor1:
+                    Type: Task
+                    Resource: "arn:aws:states:::states:startExecution"
+                    Parameters:
+                      StateMachineArn: !Ref JobProcessorPipeline
+                      Input.$: "$"
+                    End: true
+              - StartAt: CreateSentimentJob2
+                States:
+                  CreateSentimentJob2:
+                    Type: Task
+                    OutputPath: $.Payload
+                    Resource: "arn:aws:states:::lambda:invoke"
+                    Parameters:
+                      FunctionName: !Ref SentimentJobCreatorName
+                      Payload.$: $.inputArray[((count($.inputArray)/2)-1)..]
+                    Next: StartJobProcessor2
+                  StartJobProcessor2:
+                    Type: Task
+                    Resource: "arn:aws:states:::states:startExecution"
+                    Parameters:
+                      StateMachineArn: !Ref JobProcessorPipeline
+                      Input.$: "$"
+                    End: true
+            Comment: >-
+              Split the input array into multiple smaller array to avoid timeout on
+              CreateSentimentJob
+            QueryLanguage: JSONata
+            
       # Add the Events section directly to the StateMachine
       Events:
         HourlyTrigger:
