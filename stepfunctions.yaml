@@ -216,49 +216,22 @@ Resources:
                       "Message.$": "$"
                     End: true
             OutputPath: $[*][*]
-            Next: SplitResult
-          SplitResult:
-            Type: Parallel
+            Next: CreateSentimentJob
+          CreateSentimentJob:
+            Type: Task
+            OutputPath: $.Payload
+            Resource: "arn:aws:states:::lambda:invoke"
+            Parameters:
+              FunctionName: !Ref SentimentJobCreatorName
+              Payload.$: $
+            Next: StartJobProcessor
+          StartJobProcessor:
+            Type: Task
+            Resource: "arn:aws:states:::states:startExecution"
+            Parameters:
+              StateMachineArn: !Ref JobProcessorPipeline
+              Input.$: "$"
             End: true
-            Branches:
-              - StartAt: CreateSentimentJob1
-                States:
-                  CreateSentimentJob1:
-                    Type: Task
-                    OutputPath: $.Payload
-                    Resource: "arn:aws:states:::lambda:invoke"
-                    Parameters:
-                      FunctionName: !Ref SentimentJobCreatorName
-                      Payload.$: $.inputArray[0..((count($.inputArray)/2)-1)]
-                    Next: StartJobProcessor1
-                  StartJobProcessor1:
-                    Type: Task
-                    Resource: "arn:aws:states:::states:startExecution"
-                    Parameters:
-                      StateMachineArn: !Ref JobProcessorPipeline
-                      Input.$: "$"
-                    End: true
-              - StartAt: CreateSentimentJob2
-                States:
-                  CreateSentimentJob2:
-                    Type: Task
-                    OutputPath: $.Payload
-                    Resource: "arn:aws:states:::lambda:invoke"
-                    Parameters:
-                      FunctionName: !Ref SentimentJobCreatorName
-                      Payload.$: $.inputArray[((count($.inputArray)/2)-1)..]
-                    Next: StartJobProcessor2
-                  StartJobProcessor2:
-                    Type: Task
-                    Resource: "arn:aws:states:::states:startExecution"
-                    Parameters:
-                      StateMachineArn: !Ref JobProcessorPipeline
-                      Input.$: "$"
-                    End: true
-            Comment: >-
-              Split the input array into multiple smaller array to avoid timeout on
-              CreateSentimentJob
-            QueryLanguage: JSONata
             
       # Add the Events section directly to the StateMachine
       Events:
