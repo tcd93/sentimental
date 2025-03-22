@@ -27,8 +27,8 @@ def lambda_handler(event, _):
         keyword=event["keyword"],
         sort=event.get("sort", "top"),
         time_filter=event.get("time_filter", "day"),
-        post_limit=event.get("post_limit", 7),
-        top_comments_limit=event.get("top_comments_limit", 3),
+        post_limit=event.get("post_limit", 6),
+        top_comments_limit=event.get("top_comments_limit", 2),
         logger=logger,
     )
 
