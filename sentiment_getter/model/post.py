@@ -9,6 +9,7 @@ import json
 import os
 import boto3
 
+s3 = boto3.client("s3")
 
 @dataclass
 # pylint: disable=too-many-instance-attributes
@@ -78,24 +79,12 @@ class Post:
         """Create Post from JSON string."""
         return cls.from_dict(json.loads(json_str))
 
-    def persist(self):
-        """Persist the Post to S3"""
-        s3 = boto3.client("s3")
-        s3.put_object(
-            Bucket=os.environ["S3_BUCKET_NAME"],
-            Key=self.s3_key(self.id),
-            Body=self.to_json(),
-            ContentType="application/json",
-        )
-        self.logger.debug("Persisted key %s to S3", self.s3_key(self.id))
-
     # construct Post from s3
     @classmethod
     def from_s3(
         cls, post_id: str, logger: logging.Logger | None = None
     ) -> "Post":
         """Construct Post from S3"""
-        s3 = boto3.client("s3")
         if logger is None:
             logger = logging.getLogger()
             logger.setLevel(logging.INFO)
