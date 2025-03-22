@@ -179,7 +179,12 @@ class ChatGPTProvider(SentimentProvider):
             content = openai_result["response"]["body"]["choices"][0]["message"][
                 "content"
             ]
-            parsed = json.loads(content)
+            # Sometimes the bot will f-up and return a non-json object
+            try:
+                parsed = json.loads(content)
+            except json.JSONDecodeError:
+                self.logger.warning("Failed to parse content: %s", content)
+                continue
             sentiment = parsed["sentiment"]
             scores = parsed["scores"]
             sentiments.append(
