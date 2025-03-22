@@ -4,10 +4,3 @@ samconfig.toml
 .env
 __pycache__
 temp_layer
-**/array_splitter/target
-**/node_modules
-**/dist
-**/build
-**/coverage
-**/coverage.json
-**/coverage.lcov

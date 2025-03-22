@@ -12,9 +12,6 @@ Parameters:
   SentimentJobCreatorName:
     Type: String
     Description: Name of the sentiment job creator Lambda function
-  SplitResultFunctionName:
-    Type: String
-    Description: Name of the split result function
   GetJobStatusName:
     Type: String
     Description: Name of the job status checker Lambda function
@@ -61,8 +58,6 @@ Resources:
             FunctionName: !Ref RedditScraperName
         - LambdaInvokePolicy:
             FunctionName: !Ref SteamScraperName
-        - LambdaInvokePolicy:
-            FunctionName: !Ref SplitResultFunctionName
         - LambdaInvokePolicy:
             FunctionName: !Ref SentimentJobCreatorName
         - S3CrudPolicy:
@@ -221,17 +216,8 @@ Resources:
                       "Message.$": "$"
                     End: true
             OutputPath: $[*][*]
-            Next: SplitResultFunction
-          SplitResultFunction:
-            Type: Task
-            Resource: "arn:aws:states:::lambda:invoke"
-            Parameters:
-              FunctionName: !Ref SplitResultFunctionName
-              Payload.$: "$"
-            OutputPath: "$.Payload"
-            Comment: JSONata has a memory limit, so I memed this one
-            Next: MapChunk
-          MapChunk:
+            Next: SplitResult
+          SplitResult:
             Type: Parallel
             End: true
             Branches:
@@ -239,12 +225,11 @@ Resources:
                 States:
                   CreateSentimentJob1:
                     Type: Task
-                    InputPath: $.chunk1
                     OutputPath: $.Payload
                     Resource: "arn:aws:states:::lambda:invoke"
                     Parameters:
                       FunctionName: !Ref SentimentJobCreatorName
-                      Payload.$: $
+                      Payload.$: $.inputArray[0..((count($.inputArray)/2)-1)]
                     Next: StartJobProcessor1
                   StartJobProcessor1:
                     Type: Task
@@ -257,12 +242,11 @@ Resources:
                 States:
                   CreateSentimentJob2:
                     Type: Task
-                    InputPath: $.chunk2
                     OutputPath: $.Payload
                     Resource: "arn:aws:states:::lambda:invoke"
                     Parameters:
                       FunctionName: !Ref SentimentJobCreatorName
-                      Payload.$: $
+                      Payload.$: $.inputArray[((count($.inputArray)/2)-1)..]
                     Next: StartJobProcessor2
                   StartJobProcessor2:
                     Type: Task
@@ -274,6 +258,7 @@ Resources:
             Comment: >-
               Split the input array into multiple smaller array to avoid timeout on
               CreateSentimentJob
+            QueryLanguage: JSONata
             
       # Add the Events section directly to the StateMachine
       Events:

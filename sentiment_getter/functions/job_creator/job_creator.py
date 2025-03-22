@@ -30,11 +30,14 @@ def lambda_handler(event, _):
     if not isinstance(event, list):
         raise ValueError("Invalid input format: event must be a list")
 
-    provider = get_provider(logger = logger)
+    provider = get_provider(logger=logger)
 
-    posts: list[Post] = [
-        Post.from_s3(post_id, logger) for post_id in event
-    ]
+    start_time = datetime.now()
+    logger.info("Start constructing posts")
+    posts: list[Post] = [Post.from_s3(post_id, logger) for post_id in event]
+    logger.info(
+        "Posts constructed in %s seconds", (datetime.now() - start_time).total_seconds()
+    )
 
     if not posts or len(posts) == 0:
         raise ValueError("No posts to analyze")
