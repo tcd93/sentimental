@@ -51,7 +51,7 @@ class TestComprehendProvider(unittest.TestCase):
 
     def test_create_sentiment_job_empty_posts(self):
         """Test create_sentiment_job with empty posts list."""
-        result = self.provider.create_sentiment_job([], "test-job")
+        result = self.provider.create_sentiment_job([], "test-job", "test-execution-id")
         self.assertEqual(result, {"error": "No posts to analyze"})
 
     @patch("boto3.client")
@@ -69,7 +69,7 @@ class TestComprehendProvider(unittest.TestCase):
 
         # Create job
         job = self.provider.create_sentiment_job(
-            [self.sample_post, self.sample_post2], "test-job"
+            [self.sample_post, self.sample_post2], "test-job", "test-execution-id"
         )
 
         # Verify S3 upload

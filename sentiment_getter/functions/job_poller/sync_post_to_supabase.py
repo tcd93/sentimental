@@ -26,7 +26,6 @@ def lambda_handler(event, _):
     job = event["BatchInput"]["Job"]
     job = Job.from_dict(job, logger)
     assert job.status == "COMPLETED", "Job is not completed"
-    job.persist()
 
     provider = get_provider(logger=logger, provider_name=job.provider)
 
@@ -39,13 +38,11 @@ def lambda_handler(event, _):
     sentiments = provider.process_completed_job(job, posts)
     if sentiments:
         job.status = "DB_SYNCING"
-        job.persist()
 
         for sentiment in sentiments:
             sentiment.sync_supabase()
 
         job.status = "DB_SYNCED"
-        job.persist()
 
     # return list of keys for deletion
     return [{"Key": key} for key in keys]

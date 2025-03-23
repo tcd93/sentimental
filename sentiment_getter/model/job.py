@@ -5,12 +5,9 @@ Keep the size small to save cost:
 https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/read-write-operations.html#write-operation-consumption
 """
 
-import os
 from dataclasses import dataclass
 import logging
-from datetime import datetime, timedelta
-
-import boto3
+from datetime import datetime
 
 @dataclass(frozen=True)
 class ChatGPTProviderData:
@@ -128,21 +125,3 @@ class Job:
         }
 
         return result
-
-    def persist(self):
-        """
-        Persist the Job info to database.
-        """
-        dynamodb = boto3.resource("dynamodb")
-        jobs_table = dynamodb.Table(os.environ["JOBS_TABLE_NAME"])
-
-        response = jobs_table.put_item(
-            Item=self.to_dict()
-            | {"ttl": int((datetime.now() + timedelta(days=30)).timestamp())},
-            ReturnConsumedCapacity="TOTAL",
-        )
-        self.logger.info(
-            "Synced job to DynamoDB, total capacity units consumed: %s",
-            response.get("ConsumedCapacity", {}).get("CapacityUnits", "N/A"),
-        )
-        return True

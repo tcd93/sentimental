@@ -53,6 +53,5 @@ def lambda_handler(event, _):
 
     job_name = f"job_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
     job = provider.create_sentiment_job(posts, job_name, execution_id)
-    job.persist()
 
     return job.to_dict()
