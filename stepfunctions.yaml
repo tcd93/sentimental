@@ -86,7 +86,7 @@ Resources:
                   ProcessRedditTasks:
                     Type: Map
                     InputPath: $.source.reddit
-                    MaxConcurrency: 40
+                    MaxConcurrency: 50
                     ToleratedFailurePercentage: 40
                     Iterator:
                       ProcessorConfig:
@@ -113,7 +113,6 @@ Resources:
                           # transform to: {"success": ["123"]}
                           ResultSelector:
                             success.$: $[*].Key
-                          MaxConcurrency: 40
                           Iterator:
                             StartAt: StoreRedditPostToS3
                             States:
@@ -156,7 +155,7 @@ Resources:
                     Type: Map
                     InputPath: $.source.steam
                     ToleratedFailurePercentage: 30
-                    MaxConcurrency: 40
+                    MaxConcurrency: 90
                     Iterator:
                       ProcessorConfig:
                         Mode: DISTRIBUTED
@@ -180,7 +179,6 @@ Resources:
                           # see StoreRedditPosts for explanation
                           ResultSelector:
                             success.$: $[*].Key
-                          MaxConcurrency: 40
                           Iterator:
                             StartAt: StoreSteamPostToS3
                             States:
@@ -326,7 +324,7 @@ Resources:
                   OutputPath: "$.Payload"
                   End: true
             Label: Map
-            MaxConcurrency: 1000
+            MaxConcurrency: 250
             ItemBatcher:
               MaxItemsPerBatch: 5
               BatchInput:
