@@ -169,8 +169,9 @@ class ChatGPTProvider(SentimentProvider):
 
             post_id = openai_result["custom_id"]
             if post_id not in [post.id for post in posts]:
-                self.logger.warning("Post ID %s not found in job posts", post_id)
-                continue
+                self.logger.error("Post ID %s not found in job posts", post_id)
+                self.logger.info("posts: %s", [post.to_json() for post in posts])
+                raise ValueError(f"Post ID {post_id} not found in job posts")
 
             # Find the corresponding post
             post = next(post for post in posts if post.id == post_id)
