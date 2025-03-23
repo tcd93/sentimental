@@ -13,15 +13,14 @@ import boto3
 
 def lambda_handler(event, _):
     """
-    Sync posts to Supabase after Mapping job bucket.
-    Note: Item batching is enabled so expect object with Item list.
+    Sync posts to Supabase. Input is a list of post keys.
     """
     logger = logging.getLogger()
     logger.setLevel(logging.INFO)
     s3 = boto3.client("s3")
 
-    items = event["Items"]
-    assert isinstance(items, list), "Items is not a list"
+    keys = event["Items"]
+    assert isinstance(keys, list), "Items is not a list"
 
     # batch input is configured in Map state and key name is hardcoded
     job = event["BatchInput"]["Job"]
@@ -32,11 +31,8 @@ def lambda_handler(event, _):
     provider = get_provider(logger=logger, provider_name=job.provider)
 
     posts: list[Post] = []
-    for item in items:
-        # skip zero-byte file returned from ListObjectsV2
-        if item["Size"] == 0:
-            continue
-        response = s3.get_object(Bucket=os.environ["S3_BUCKET_NAME"], Key=item["Key"])
+    for key in keys:
+        response = s3.get_object(Bucket=os.environ["S3_BUCKET_NAME"], Key=key)
         post = Post.from_json(response["Body"].read().decode("utf-8"))
         posts.append(post)
 
@@ -52,4 +48,4 @@ def lambda_handler(event, _):
         job.persist()
 
     # return list of keys for deletion
-    return [{"Key": post.s3_key(post.id)} for post in posts]
+    return [{"Key": key} for key in keys]

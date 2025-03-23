@@ -31,6 +31,9 @@ def lambda_handler(event, _):
         top_comments_limit=event.get("top_comments_limit", 2),
         logger=logger,
     )
+    # Set execution id
+    for post in posts:
+        post.execution_id = event["ephermeral_execution_id"]
 
     logger.info("Found %d posts matching criteria", len(posts))
     return {

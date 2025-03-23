@@ -9,8 +9,6 @@ import json
 import os
 import boto3
 
-s3 = boto3.client("s3")
-
 @dataclass
 # pylint: disable=too-many-instance-attributes
 class Post:
@@ -25,31 +23,35 @@ class Post:
     comments: list[str]
     post_url: str = ""  # Optional URL to the original post
     logger: logging.Logger | None = None
+    execution_id: str | None = None
 
     def __post_init__(self):
         if self.logger is None:
             self.logger = logging.getLogger()
             self.logger.setLevel(logging.INFO)
 
+    def get_s3_key(self) -> str:
+        """Get the S3 key for the Post"""
+        return f"posts/{self.execution_id + '/' if self.execution_id else ''}{self.id}.json"
+
     def get_text(self) -> str:
         """
-        Get the text of the post and comments as a single line for Comprehend processing
-        Words are limited to save cost and space
+        Get the text of the post and comments as a single line for processing
         """
-        # Limit each comment to 300 words and join all text with spaces
-        truncated_comments = " - ".join(
-            [comment[:200].replace("\n", ".") for comment in self.comments]
+        trimmed_comments = " - ".join(
+            [comment.replace("\n", ".") for comment in self.comments]
         )
         return (
             f"title: {self.title.replace('\n', '.')}; "
             f"body: {self.body[:300].replace('\n', '.')}; "
-            f"comments: {truncated_comments}"
+            f"comments: {trimmed_comments}"
         )
 
     def to_dict(self) -> dict:
         """Convert Post to dictionary for serialization."""
         return {
             "id": self.id,
+            "execution_id": self.execution_id,
             "keyword": self.keyword,
             "source": self.source,
             "title": self.title,
@@ -81,20 +83,12 @@ class Post:
 
     # construct Post from s3
     @classmethod
-    def from_s3(
-        cls, post_id: str, logger: logging.Logger | None = None
-    ) -> "Post":
+    def from_s3(cls, key: str, logger: logging.Logger | None = None) -> "Post":
         """Construct Post from S3"""
+        s3 = boto3.client("s3")
         if logger is None:
             logger = logging.getLogger()
             logger.setLevel(logging.INFO)
-        logger.debug("Fetching key %s", cls.s3_key(post_id))
-        response = s3.get_object(
-            Bucket=os.environ["S3_BUCKET_NAME"], Key=cls.s3_key(post_id)
-        )
+        logger.debug("Fetching key %s", key)
+        response = s3.get_object(Bucket=os.environ["S3_BUCKET_NAME"], Key=key)
         return cls.from_json(response["Body"].read().decode("utf-8"))
-
-    @staticmethod
-    def s3_key(post_id: str) -> str:
-        """Get the S3 key for the Post"""
-        return f"posts/{post_id}.json"

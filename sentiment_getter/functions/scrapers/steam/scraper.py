@@ -102,7 +102,11 @@ def get_steam_reviews(
             keyword=keyword,
             source="steam",
             title=f"Steam Review for {keyword}",
-            body=review["review"],
+            body=(
+                review["review"][:720] + "..."
+                if len(review["review"]) > 720
+                else review["review"]
+            ),
             created_at=created_at,
             comments=[],  # Steam reviews don't have comments in the same way
             post_url=(

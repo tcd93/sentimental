@@ -28,6 +28,9 @@ def lambda_handler(event, _):
         post_limit=event.get("post_limit", 8),
         logger=logger,
     )
+    # Set execution id
+    for post in posts:
+        post.execution_id = event["ephermeral_execution_id"]
 
     logger.info("Found %d reviews matching criteria", len(posts))
 

@@ -21,7 +21,7 @@ class ComprehendProvider(SentimentProvider):
     def get_provider_name(self) -> str:
         return "comprehend"
 
-    def create_sentiment_job(self, posts: list[Post], job_name: str) -> Job:
+    def create_sentiment_job(self, posts: list[Post], job_name: str, execution_id: str) -> Job:
         if not posts:
             return {"error": "No posts to analyze"}
 
@@ -58,9 +58,10 @@ class ComprehendProvider(SentimentProvider):
             job_name=job_name,
             status="SUBMITTED",
             created_at=datetime.now(),
-            post_ids=[post.id for post in posts],
+            post_keys=[post.get_s3_key() for post in posts],
             provider=self.get_provider_name(),
             logger=self.logger,
+            execution_id=execution_id,
         )
 
         return job

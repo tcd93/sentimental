@@ -106,13 +106,13 @@ Resources:
                           Type: Map
                           ItemsPath: $.posts
                           ItemSelector:
-                            Key.$: States.Format('posts/{}.json', $$.Map.Item.Value.id)
+                            Key.$: States.Format('posts/{}/{}.json', $$.Map.Item.Value.execution_id, $$.Map.Item.Value.id)
                             Body.$: $$.Map.Item.Value
                           # output of the map:
-                          # [{"Body": {"id": "123"}, "Key": "posts/123.json"}]
+                          # [{"Body": {"id": "123"}, "Key": "posts/{execution_id}/123.json"}]
                           # transform to: {"success": ["123"]}
                           ResultSelector:
-                            success.$: $[*].Body.id
+                            success.$: $[*].Key
                           MaxConcurrency: 40
                           Iterator:
                             StartAt: StoreRedditPostToS3
@@ -175,11 +175,11 @@ Resources:
                           Type: Map
                           ItemsPath: "$.posts"
                           ItemSelector:
-                            Key.$: States.Format('posts/{}.json', $$.Map.Item.Value.id)
+                            Key.$: States.Format('posts/{}/{}.json', $$.Map.Item.Value.execution_id, $$.Map.Item.Value.id)
                             Body.$: $$.Map.Item.Value
                           # see StoreRedditPosts for explanation
                           ResultSelector:
-                            success.$: $[*].Body.id
+                            success.$: $[*].Key
                           MaxConcurrency: 40
                           Iterator:
                             StartAt: StoreSteamPostToS3
@@ -219,11 +219,17 @@ Resources:
                     End: true
             # output of the map: 
             # (each branch returns a list object, then the map wrap it in another list)
-            # note that there are error objectts mixed in, as we defined ToleratedFailurePercentage to be 80
-            # [[{"success": ["123"]}, {"error: "timeout"}], [{"success": ["789"]}]...]
+            # note that there are error objectts mixed in, as we defined ToleratedFailurePercentage
+            # [[{"success": ["key1"]}, {"error": "timeout"}], [{"success": ["key2"]}]...]
             # transform to:
-            # ["123", "456", "789"]
-            OutputPath: $[*][*].success[*]
+            # ["key1", "key2"]
+            QueryLanguage: JSONata
+            Output: "{% $states.result.[*][*].'success' %}"
+            # add execution id so they can be stored in s3 /{execution_id}/{post_id}.json
+            Arguments:
+              source:
+                reddit: "{% [$map($states.input.source.reddit, function($v) { $merge([$v, { 'ephermeral_execution_id': $split($states.context.Execution.Id, ':')[-1] }]) })] %}"
+                steam: "{% [$map($states.input.source.steam, function($v) { $merge([$v, { 'ephermeral_execution_id': $split($states.context.Execution.Id, ':')[-1] }]) })] %}"
             Next: CreateSentimentJob
           CreateSentimentJob:
             Type: Task
@@ -301,8 +307,10 @@ Resources:
             Error: "Job failed, check logs for more details"
           MapPosts:
             Type: Map
+            QueryLanguage: JSONata
             Comment: Map posts that are stored in S3
-            OutputPath: "$[*][*]"
+            Output: "{% $states.result.[*][*] %}"
+            Items: "{% $states.input.post_keys %}"
             ItemProcessor:
               ProcessorConfig:
                 Mode: DISTRIBUTED
@@ -322,12 +330,7 @@ Resources:
             ItemBatcher:
               MaxItemsPerBatch: 5
               BatchInput:
-                Job.$: "$"
-            ItemReader:
-              Resource: "arn:aws:states:::s3:listObjectsV2"
-              Parameters:
-                Bucket: !Ref BucketName
-                Prefix: "posts/"
+                Job: "{% $states.input %}"
             Next: DeletePosts
           DeletePosts:
             Type: Task

@@ -21,6 +21,7 @@ class TestChatGPTProvider(unittest.TestCase):
         self.provider = ChatGPTProvider()
         self.sample_post = Post(
             id="123",
+            execution_id="123",
             keyword="test keyword",
             source="reddit",
             title="Test Title",
@@ -42,7 +43,7 @@ class TestChatGPTProvider(unittest.TestCase):
     def test_create_sentiment_job_empty_posts(self):
         """Test create_sentiment_job with empty posts list."""
         with self.assertRaises(ValueError):
-            self.provider.create_sentiment_job([], "test-job")
+            self.provider.create_sentiment_job([], "test-job", "123")
 
     @patch("openai.batches.retrieve")
     def test_check_job_status_completed(self, mock_batch_retrieve):
@@ -53,7 +54,7 @@ class TestChatGPTProvider(unittest.TestCase):
             job_name="Test Job",
             status="SUBMITTED",
             created_at=datetime.now(),
-            post_ids=[self.sample_post.id],
+            post_keys=[self.sample_post.get_s3_key()],
             provider="chatgpt",
             provider_data=ChatGPTProviderData(
                 openai_batch_id="batch-123", output_file_id=None
@@ -78,7 +79,7 @@ class TestChatGPTProvider(unittest.TestCase):
             job_name="Test Job",
             status="SUBMITTED",
             created_at=datetime.now(),
-            post_ids=[self.sample_post.id],
+            post_keys=[self.sample_post.get_s3_key()],
             provider="chatgpt",
             provider_data=ChatGPTProviderData(
                 openai_batch_id="batch-123",
@@ -103,7 +104,7 @@ class TestChatGPTProvider(unittest.TestCase):
             job_name="Test Job",
             status="COMPLETED",
             created_at=datetime.now(),
-            post_ids=[self.sample_post.id],
+            post_keys=[self.sample_post.get_s3_key()],
             provider="chatgpt",
             provider_data=ChatGPTProviderData(
                 openai_batch_id="batch-123", output_file_id="output-123"
@@ -173,7 +174,7 @@ class TestChatGPTProvider(unittest.TestCase):
             job_name="Test Job",
             status="COMPLETED",
             created_at=datetime.now(),
-            post_ids=[self.sample_post.id],
+            post_keys=[self.sample_post.get_s3_key()],
             provider="chatgpt",
             provider_data=ChatGPTProviderData(
                 openai_batch_id="batch-123",

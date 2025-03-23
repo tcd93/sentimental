@@ -21,6 +21,7 @@ class TestComprehendProvider(unittest.TestCase):
         self.provider = ComprehendProvider()
         self.sample_post = Post(
             id="123",
+            execution_id="123",
             keyword="test keyword",
             source="reddit",
             title="Test Title",
@@ -93,7 +94,7 @@ class TestComprehendProvider(unittest.TestCase):
             job_name="Test Job",
             status="SUBMITTED",
             created_at=datetime.now(),
-            post_ids=[self.sample_post.id, self.sample_post2.id],
+            post_keys=[self.sample_post.get_s3_key(), self.sample_post2.get_s3_key()],
             provider="comprehend",
         )
 
@@ -147,7 +148,7 @@ class TestComprehendProvider(unittest.TestCase):
             job_name="Test Job",
             status="COMPLETED",
             created_at=datetime.now(),
-            post_ids=[self.sample_post.id, self.sample_post2.id],
+            post_keys=[self.sample_post.get_s3_key(), self.sample_post2.get_s3_key()],
             provider="comprehend",
         )
 

@@ -14,7 +14,7 @@ def lambda_handler(event, _):
     Create a sentiment analysis job for posts from multiple scrapers.
 
     Args:
-        event: Array of post ids
+        event: Array of s3 keys of posts
 
     Returns:
         Dict containing job information
@@ -34,7 +34,7 @@ def lambda_handler(event, _):
 
     start_time = datetime.now()
     logger.info("Start constructing posts")
-    posts: list[Post] = [Post.from_s3(post_id, logger) for post_id in event]
+    posts: list[Post] = [Post.from_s3(key, logger) for key in event]
     logger.info(
         "Posts constructed in %s seconds", (datetime.now() - start_time).total_seconds()
     )
@@ -42,11 +42,17 @@ def lambda_handler(event, _):
     if not posts or len(posts) == 0:
         raise ValueError("No posts to analyze")
 
+    # validate that all posts have the same execution id
+    execution_id = posts[0].execution_id
+    if not all(post.execution_id == execution_id for post in posts):
+        raise ValueError("All posts must have the same execution id")
+
     # there might be posts with the same id, remove dupplicates by post id
     posts = list({post.id: post for post in posts}.values())
 
+
     job_name = f"job_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
-    job = provider.create_sentiment_job(posts, job_name)
+    job = provider.create_sentiment_job(posts, job_name, execution_id)
     job.persist()
 
     return job.to_dict()

@@ -20,15 +20,15 @@ class ChatGPTProvider(SentimentProvider):
     def get_provider_name(self) -> str:
         return "chatgpt"
 
-    def create_sentiment_job(self, posts: list[Post], job_name: str) -> Job:
+    def create_sentiment_job(self, posts: list[Post], job_name: str, execution_id: str) -> Job:
         if not posts:
             raise ValueError("No posts to analyze")
 
         openai.api_key = os.environ["OPENAI_API_KEY"]
 
-        return self._create_batch_job(posts, job_name)
+        return self._create_batch_job(posts, job_name, execution_id)
 
-    def _create_batch_job(self, posts: list[Post], job_name: str) -> Job:
+    def _create_batch_job(self, posts: list[Post], job_name: str, execution_id: str) -> Job:
         # Create a temporary file with JSONL format for batch API
         temp_file_path = f"/tmp/{job_name}.jsonl"
         job_id = str(uuid.uuid4())
@@ -93,10 +93,11 @@ class ChatGPTProvider(SentimentProvider):
             job_name=job_name,
             status="SUBMITTED",
             created_at=datetime.now(),
-            post_ids=[post.id for post in posts],
+            post_keys=[post.get_s3_key() for post in posts],
             provider=self.get_provider_name(),
             provider_data=ChatGPTProviderData(openai_batch_id=batch_id),
             logger=self.logger,
+            execution_id=execution_id,
         )
 
     def query_and_update_job(self, job: Job) -> Job:
