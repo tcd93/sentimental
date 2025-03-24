@@ -41,7 +41,6 @@ Resources:
         SupabaseUrl: !Ref SupabaseUrl
         SupabaseKey: !Ref SupabaseKey
         BucketName: !Ref BucketName
-        SentimentJobTableName: !GetAtt InfrastructureStack.Outputs.SentimentJobTableName
 
   # Include the Step Functions
   StepFunctionsStack:

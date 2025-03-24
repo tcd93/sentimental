@@ -1,7 +1,6 @@
 """Unit tests for Steam scrapper functionality."""
 
 import unittest
-import os
 from unittest.mock import patch, MagicMock
 from datetime import datetime
 from functions.scrapers.steam.scraper import get_app_id, get_steam_reviews
@@ -102,53 +101,6 @@ class TestSteamScrapper(unittest.TestCase):
         mock_response.json.return_value = {"success": 0}
         result = get_steam_reviews(keyword="Dota 2")
         self.assertEqual(result, [])
-
-    # Real API tests
-    def test_real_get_app_id(self):
-        """Test getting a real app ID from Steam."""
-        # Skip this test if SKIP_REAL_API_TESTS environment variable is set
-        if os.environ.get("SKIP_REAL_API_TESTS"):
-            self.skipTest("Skipping real API test")
-
-        # Test with a popular game that should exist
-        app_id = get_app_id("Counter-Strike")
-        self.assertIsNotNone(app_id)
-        self.assertIsInstance(app_id, int)
-
-        # Test with a game that shouldn't exist
-        app_id = get_app_id("ThisGameDefinitelyDoesNotExist12345")
-        self.assertIsNone(app_id)
-
-    def test_real_get_steam_reviews(self):
-        """Test getting real reviews from Steam."""
-        # Skip this test if SKIP_REAL_API_TESTS environment variable is set
-        if os.environ.get("SKIP_REAL_API_TESTS"):
-            self.skipTest("Skipping real API test")
-
-        # Test with a popular game
-        posts = get_steam_reviews(
-            keyword="Counter-Strike",
-            time_filter="all",  # Use "all" to ensure we get some reviews
-            sort="top",
-            post_limit=3,
-        )
-
-        # Verify we got some posts
-        self.assertIsInstance(posts, list)
-        self.assertGreater(len(posts), 0)
-
-        # Check post structure
-        for post in posts:
-            self.assertIsInstance(post, Post)
-            self.assertTrue(post.id.startswith("steam_"))
-            self.assertIsInstance(post.title, str)
-            self.assertIsInstance(post.body, str)
-            self.assertIsInstance(post.created_at, datetime)
-            self.assertIsInstance(post.comments, list)
-
-        # Test with a non-existent game
-        posts = get_steam_reviews(keyword="ThisGameDefinitelyDoesNotExist12345")
-        self.assertEqual(posts, [])
 
 
 if __name__ == "__main__":

@@ -32,7 +32,6 @@ class TestChatGPTProvider(unittest.TestCase):
         )
 
         # Mock environment variables
-        os.environ["JOBS_TABLE_NAME"] = "test-jobs-table"
         os.environ["OPENAI_API_KEY"] = "test-api-key"
         os.environ["S3_BUCKET_NAME"] = "test-bucket"
 

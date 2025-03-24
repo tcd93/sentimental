@@ -1,8 +1,5 @@
 """
-Model for sentiment analysis jobs stored in DynamoDB.
-
-Keep the size small to save cost:
-https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/read-write-operations.html#write-operation-consumption
+Model data for sentiment analysis jobs. Keep small to pass between Step Function states.
 """
 
 from dataclasses import dataclass

@@ -43,7 +43,7 @@ class Post:
         )
         return (
             f"title: {self.title.replace('\n', '.')}; "
-            f"body: {self.body[:300].replace('\n', '.')}; "
+            f"body: {self.body.replace('\n', '.')}; "
             f"comments: {trimmed_comments}"
         )
 

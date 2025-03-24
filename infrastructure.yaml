@@ -21,27 +21,6 @@ Resources:
     Properties:
       DisplayName: SentimentAnalysisErrors
 
-  SentimentJobTable:
-    Type: AWS::DynamoDB::Table
-    Properties:
-      TableName: sentiment_job
-      BillingMode: PAY_PER_REQUEST
-      AttributeDefinitions:
-        - AttributeName: job_id
-          AttributeType: S
-        - AttributeName: status
-          AttributeType: S
-      KeySchema:
-        - AttributeName: job_id
-          KeyType: HASH
-      GlobalSecondaryIndexes:
-        - IndexName: status-index
-          KeySchema:
-            - AttributeName: status
-              KeyType: HASH
-          Projection:
-            ProjectionType: ALL
-
 Outputs:
   ErrorTopicName:
     Description: SNS topic name for errors
@@ -49,6 +28,3 @@ Outputs:
   ErrorTopicArn:
     Description: SNS topic ARN for errors
     Value: !GetAtt ErrorTopic.TopicArn
-  SentimentJobTableName:
-    Description: DynamoDB table name
-    Value: !Ref SentimentJobTable
