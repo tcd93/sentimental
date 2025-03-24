@@ -294,15 +294,12 @@ Resources:
                 Next: MapPosts
               - Variable: "$.status"
                 StringEquals: "FAILED"
-                Next: FailJob
+                Next: SNSPublishError
             Default: Wait75Seconds
           Wait75Seconds:
             Type: Wait
             Seconds: 75
             Next: GetJobStatus
-          FailJob:
-            Type: Fail
-            Error: "Job failed, check logs for more details"
           MapPosts:
             Type: Map
             QueryLanguage: JSONata
@@ -329,15 +326,29 @@ Resources:
               MaxItemsPerBatch: 5
               BatchInput:
                 Job: "{% $states.input %}"
-            Next: DeletePosts
-          DeletePosts:
-            Type: Task
-            Parameters:
-              Bucket: !Ref BucketName
-              Delete:
-                Objects.$: "$"
-            Resource: "arn:aws:states:::aws-sdk:s3:deleteObjects"
+            Retry:
+              - ErrorEquals:
+                  - States.TaskFailed
+                  - States.Timeout
+                BackoffRate: 2
+                IntervalSeconds: 20
+                MaxAttempts: 3
+                JitterStrategy: FULL
+            Catch:
+              - ErrorEquals:
+                  - States.ALL
+                Next: SNSPublishError
             End: true
+          SNSPublishError:
+            Type: Task
+            Resource: "arn:aws:states:::sns:publish"
+            Parameters:
+              TopicArn: !Ref ErrorTopicArn
+              Message.$: "$"
+            Next: FailJob
+          FailJob:
+            Type: Fail
+            Error: "Poll job failed, check logs for more details"
 
 Outputs:
   KeywordPipelineArn:
