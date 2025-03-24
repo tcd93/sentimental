@@ -118,6 +118,7 @@ Resources:
       Handler: functions/job_creator/job_creator.lambda_handler
       Runtime: python3.12
       Timeout: 360
+      MemorySize: 512
       Layers:
         - !Ref PythonDependenciesLayer
       LoggingConfig:
