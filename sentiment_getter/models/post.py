@@ -9,7 +9,7 @@ import json
 import os
 import boto3
 
-@dataclass
+@dataclass(frozen=True)
 # pylint: disable=too-many-instance-attributes
 class Post:
     """Post object representing a social media post with comments."""
@@ -22,13 +22,7 @@ class Post:
     body: str
     comments: list[str]
     post_url: str = ""  # Optional URL to the original post
-    logger: logging.Logger | None = None
     execution_id: str | None = None
-
-    def __post_init__(self):
-        if self.logger is None:
-            self.logger = logging.getLogger()
-            self.logger.setLevel(logging.INFO)
 
     def get_s3_key(self) -> str:
         """Get the S3 key for the Post"""

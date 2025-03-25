@@ -3,7 +3,6 @@ Model data for sentiment analysis jobs. Keep small to pass between Step Function
 """
 
 from dataclasses import dataclass
-import logging
 from datetime import datetime
 
 @dataclass(frozen=True)
@@ -47,7 +46,7 @@ class ComprehendProviderData:
         return cls()
 
 
-@dataclass
+@dataclass(frozen=True)
 class Job:
     """Represents a sentiment analysis job."""
 
@@ -58,19 +57,14 @@ class Job:
     post_keys: list[str]
     provider: str
     provider_data: ChatGPTProviderData | ComprehendProviderData = None
-    logger: logging.Logger | None = None
     execution_id: str | None = None
 
     def __post_init__(self):
-        if self.logger is None:
-            self.logger = logging.getLogger()
-            self.logger.setLevel(logging.INFO)
-
         if isinstance(self.created_at, str):
             self.created_at = datetime.fromisoformat(self.created_at)
 
     @classmethod
-    def from_dict(cls, data: dict[str, any], logger: logging.Logger | None = None) -> "Job":
+    def from_dict(cls, data: dict[str, any]) -> "Job":
         """
         Create a Job object from job metadata (exported from `to_dict_minimal`).
         """
@@ -93,7 +87,6 @@ class Job:
             post_keys=data["post_keys"],
             provider=data["provider"],
             provider_data=provider_data,
-            logger=logger,
             execution_id=data.get("execution_id"),
         )
 

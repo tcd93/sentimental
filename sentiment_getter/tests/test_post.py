@@ -2,7 +2,6 @@
 
 import unittest
 from datetime import datetime
-import logging
 
 from models.post import Post
 
@@ -12,9 +11,6 @@ class TestPost(unittest.TestCase):
 
     def setUp(self):
         """Set up test fixtures."""
-        self.logger = logging.getLogger("test")
-        self.logger.setLevel(logging.INFO)
-
         # Create a sample post for testing
         self.post = Post(
             id="test-post-123",
@@ -25,11 +21,10 @@ class TestPost(unittest.TestCase):
             body="This is a test post body.\nIt has multiple lines.\nTesting newline replacement.",
             comments=[
                 "First comment\nwith newline",
-                "Second comment\nalso with newline",
+                "Second comment\nwith newline",
                 "Third comment",
             ],
             post_url="https://example.com/test-post",
-            logger=self.logger,
             execution_id="test-execution-123",
         )
 
@@ -38,7 +33,7 @@ class TestPost(unittest.TestCase):
         expected_text = (
             "title: Test Post Title.with newline; "
             "body: This is a test post body..It has multiple lines..Testing newline replacement.; "
-            "comments: First comment.with newline - Second comment.also with newline - Third comment"
+            "comments: First comment.with newline - Second comment.with newline - Third comment"
         )
 
         result = self.post.get_text()
@@ -54,7 +49,6 @@ class TestPost(unittest.TestCase):
             created_at=datetime(2023, 3, 14, 15, 30),
             body="",
             comments=[],
-            logger=self.logger,
         )
 
         expected_text = "title: ; body: ; comments: "

@@ -98,7 +98,6 @@ class ChatGPTProvider(SentimentServiceProvider):
             post_keys=[post.get_s3_key() for post in posts],
             provider=self.get_provider_name(),
             provider_data=ChatGPTProviderData(openai_batch_id=batch_id),
-            logger=self.logger,
             execution_id=execution_id,
         )
 
