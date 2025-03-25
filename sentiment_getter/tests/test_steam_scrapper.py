@@ -75,7 +75,11 @@ class TestSteamScrapper(unittest.TestCase):
 
         # Test the function
         result = get_steam_reviews(
-            keyword="Dota 2", time_filter="day", sort="top", post_limit=2
+            keyword="Dota 2",
+            time_filter="day",
+            sort="top",
+            post_limit=2,
+            execution_id="123",
         )
 
         # Verify the result
@@ -93,13 +97,19 @@ class TestSteamScrapper(unittest.TestCase):
 
         # Test with no app ID
         mock_get_app_id.return_value = None
-        result = get_steam_reviews(keyword="NonexistentGame12345")
+        result = get_steam_reviews(
+            keyword="NonexistentGame12345",
+            execution_id="123",
+        )
         self.assertEqual(result, [])
 
         # Test with API error
         mock_get_app_id.return_value = 570
         mock_response.json.return_value = {"success": 0}
-        result = get_steam_reviews(keyword="Dota 2")
+        result = get_steam_reviews(
+            keyword="Dota 2",
+            execution_id="123",
+        )
         self.assertEqual(result, [])
 
 

@@ -106,6 +106,7 @@ def get_reddit_posts(**kwargs) -> list[Post]:
     time_filter = kwargs.get("time_filter", "day")
     post_limit = kwargs.get("post_limit", 7)
     top_comments_limit = kwargs.get("top_comments_limit", 3)
+    execution_id = kwargs["execution_id"]
 
     # use chatgpt to suggest subreddits
     if not subreddits or len(subreddits) == 0:
@@ -146,6 +147,7 @@ def get_reddit_posts(**kwargs) -> list[Post]:
                     ),
                     comments=list(top_comments),
                     post_url=f"https://reddit.com{post.permalink}",
+                    execution_id=execution_id,
                 )
             )
 

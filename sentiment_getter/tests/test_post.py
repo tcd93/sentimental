@@ -49,6 +49,7 @@ class TestPost(unittest.TestCase):
             created_at=datetime(2023, 3, 14, 15, 30),
             body="",
             comments=[],
+            execution_id="test-execution-123",
         )
 
         expected_text = "title: ; body: ; comments: "

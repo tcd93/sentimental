@@ -23,14 +23,12 @@ def lambda_handler(event, _):
     # Get reviews from Steam
     posts = get_steam_reviews(
         keyword=event["keyword"],
+        execution_id=event["ephermeral_execution_id"],
         sort=event.get("sort", "top"),
         time_filter=event.get("time_filter", "day"),
         post_limit=event.get("post_limit", 8),
         logger=logger,
     )
-    # Set execution id
-    for post in posts:
-        post.execution_id = event["ephermeral_execution_id"]
 
     logger.info("Found %d reviews matching criteria", len(posts))
 

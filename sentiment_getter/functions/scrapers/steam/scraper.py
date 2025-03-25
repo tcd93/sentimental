@@ -34,6 +34,7 @@ def get_app_id(game_name):
 
 def get_steam_reviews(
     keyword,
+    execution_id: str,
     time_filter="day",
     sort="top",
     post_limit=10,
@@ -113,6 +114,7 @@ def get_steam_reviews(
                 "https://steamcommunity.com/profiles/"
                 f"{review['author']['steamid']}/recommended/{app_id}/"
             ),
+            execution_id=execution_id,
         )
         posts.append(post)
 

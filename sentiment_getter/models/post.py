@@ -21,8 +21,8 @@ class Post:
     created_at: datetime
     body: str
     comments: list[str]
+    execution_id: str
     post_url: str = ""  # Optional URL to the original post
-    execution_id: str | None = None
 
     def get_text(self) -> str:
         """

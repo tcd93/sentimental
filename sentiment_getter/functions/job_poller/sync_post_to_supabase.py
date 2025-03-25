@@ -37,12 +37,8 @@ def lambda_handler(event, _):
 
     sentiments = provider.process_completed_job(job, posts)
     if sentiments:
-        job.status = "DB_SYNCING"
-
         for sentiment in sentiments:
             sentiment.sync_supabase()
-
-        job.status = "DB_SYNCED"
 
     # return list of keys for deletion
     return [{"Key": key} for key in keys]
