@@ -78,6 +78,7 @@ Resources:
       Handler: functions/scrapers/reddit/reddit.lambda_handler
       Runtime: python3.12
       Timeout: 60
+      MemorySize: 192
       Layers:
         - !Ref PythonDependenciesLayer
       LoggingConfig:
