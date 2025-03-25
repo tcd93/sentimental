@@ -123,7 +123,7 @@ class ChatGPTProvider(SentimentServiceProvider):
             self.logger.error("OpenAI batch job %s: %s", openai_status, batch_response)
             status = "FAILED"
             return status, provider_data
-        if openai_status == "in_progress":
+        if openai_status in ["in_progress", "queued", "finalizing"]:
             status = "IN_PROGRESS"
             return status, provider_data
 
