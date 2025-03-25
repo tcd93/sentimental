@@ -128,7 +128,7 @@ def get_reddit_posts(**kwargs) -> list[Post]:
         post: Submission = post
         post.comments.replace_more(limit=0)
         top_comments = map(
-            lambda c: c.body[:360] + "..." if len(c.body) > 360 else c.body,
+            lambda c: c.body[:480] + "..." if len(c.body) > 480 else c.body,
             post.comments.list()[:top_comments_limit],
         )
 
@@ -141,8 +141,8 @@ def get_reddit_posts(**kwargs) -> list[Post]:
                     title=post.title,
                     created_at=datetime.fromtimestamp(post.created_utc),
                     body=(
-                        post.selftext[:720] + "..."
-                        if len(post.selftext) > 720
+                        post.selftext[:960] + "..."
+                        if len(post.selftext) > 960
                         else post.selftext
                     ),
                     comments=list(top_comments),

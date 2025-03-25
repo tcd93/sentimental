@@ -103,8 +103,8 @@ def get_steam_reviews(
             source="steam",
             title=f"Steam Review for {keyword}",
             body=(
-                review["review"][:720] + "..."
-                if len(review["review"]) > 720
+                review["review"][:960] + "..."
+                if len(review["review"]) > 960
                 else review["review"]
             ),
             created_at=created_at,

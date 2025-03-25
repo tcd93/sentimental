@@ -1,3 +1,5 @@
+-- Postgresql
+
 CREATE TABLE sentiment_results (
     id BIGSERIAL PRIMARY KEY,
     keyword TEXT NOT NULL,
@@ -23,5 +25,6 @@ CREATE INDEX idx_sentiment_results_insert_time
 ON sentiment_results(insert_time DESC);
 
 ALTER TABLE sentiment_results 
-ADD CONSTRAINT unique_post_job 
-UNIQUE (post_id, job_id);
+ADD CONSTRAINT unique_post
+UNIQUE (post_id);
+

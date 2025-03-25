@@ -53,7 +53,7 @@ class Sentiment:
 
         result = (
             supabase.table("sentiment_results")
-            .upsert(record, on_conflict="post_id,job_id", count="exact")
+            .upsert(record, on_conflict="post_id", count="exact")
             .execute()
         )
         if result.count is not None:
