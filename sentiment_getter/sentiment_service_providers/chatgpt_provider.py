@@ -123,11 +123,8 @@ class ChatGPTProvider(SentimentServiceProvider):
             self.logger.error("OpenAI batch job %s: %s", openai_status, batch_response)
             status = "FAILED"
             return status, provider_data
-        if openai_status in ["in_progress", "queued", "finalizing"]:
-            status = "IN_PROGRESS"
-            return status, provider_data
-
-        raise ValueError(f"Unknown OpenAI batch job status: {openai_status}")
+        status = "IN_PROGRESS"
+        return status, provider_data
 
     def process_completed_job(self, job: Job, posts: list[Post]) -> list[Sentiment]:
         if job.provider_data.error_file_id:
