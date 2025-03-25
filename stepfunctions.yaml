@@ -87,7 +87,9 @@ Resources:
                   ProcessRedditTasks:
                     Type: Map
                     InputPath: $.source.reddit
-                    MaxConcurrency: 50
+                    # Reddit does not allow more than 100 requests per minute, 45 is a good number
+                    MaxConcurrency: 45
+                    # praw is extremely slow, a lot of requests are going to timeout
                     ToleratedFailurePercentage: 40
                     Iterator:
                       ProcessorConfig:
