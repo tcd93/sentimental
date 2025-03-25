@@ -5,14 +5,14 @@ Factory for creating sentiment providers.
 import os
 import logging
 
-from providers.sentiment_provider import SentimentProvider
-from providers.comprehend_provider import ComprehendProvider
-from providers.chatgpt_provider import ChatGPTProvider
+from sentiment_service_providers.sentiment_service_provider import SentimentServiceProvider
+from sentiment_service_providers.comprehend_provider import ComprehendProvider
+from sentiment_service_providers.chatgpt_provider import ChatGPTProvider
 
 
-def get_provider(
+def get_service_provider(
     logger: logging.Logger | None = None, provider_name: str | None = None
-) -> SentimentProvider:
+) -> SentimentServiceProvider:
     """
     Get a sentiment provider instance.
 

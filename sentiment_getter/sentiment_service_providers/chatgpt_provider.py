@@ -12,9 +12,9 @@ import boto3
 from model.job import ChatGPTProviderData, Job
 from model.post import Post
 from model.sentiment import Sentiment
-from providers.sentiment_provider import SentimentProvider
+from sentiment_service_providers.sentiment_service_provider import SentimentServiceProvider
 
-class ChatGPTProvider(SentimentProvider):
+class ChatGPTProvider(SentimentServiceProvider):
     """OpenAI ChatGPT implementation of the sentiment provider."""
 
     def get_provider_name(self) -> str:

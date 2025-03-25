@@ -7,7 +7,7 @@ import os
 
 from model.job import Job
 from model.post import Post
-from providers.provider_factory import get_provider
+from sentiment_service_providers.service_provider_factory import get_service_provider
 import boto3
 
 
@@ -27,7 +27,7 @@ def lambda_handler(event, _):
     job = Job.from_dict(job, logger)
     assert job.status == "COMPLETED", "Job is not completed"
 
-    provider = get_provider(logger=logger, provider_name=job.provider)
+    provider = get_service_provider(logger=logger, provider_name=job.provider)
 
     posts: list[Post] = []
     for key in keys:

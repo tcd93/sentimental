@@ -6,7 +6,7 @@ from datetime import datetime
 import json
 import os
 
-from providers.chatgpt_provider import ChatGPTProvider
+from sentiment_service_providers.chatgpt_provider import ChatGPTProvider
 from model.post import Post
 from model.sentiment import Sentiment
 from model.job import Job

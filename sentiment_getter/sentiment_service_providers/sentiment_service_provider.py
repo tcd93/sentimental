@@ -8,7 +8,7 @@ from model.job import Job
 from model.post import Post
 from model.sentiment import Sentiment
 
-class SentimentProvider(ABC):
+class SentimentServiceProvider(ABC):
     """Base interface for sentiment analysis providers."""
 
     logger: logging.Logger | None = None

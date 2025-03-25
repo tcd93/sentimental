@@ -5,7 +5,7 @@ Lambda function to get the status of a sentiment analysis job
 import logging
 
 from model.job import Job
-from providers.provider_factory import get_provider
+from sentiment_service_providers.service_provider_factory import get_service_provider
 
 
 def lambda_handler(event, _):
@@ -20,6 +20,6 @@ def lambda_handler(event, _):
     logger.setLevel(logging.INFO)
 
     job = Job.from_dict(event, logger)
-    provider = get_provider(logger=logger, provider_name=job.provider)
+    provider = get_service_provider(logger=logger, provider_name=job.provider)
 
     return provider.query_and_update_job(job).to_dict()

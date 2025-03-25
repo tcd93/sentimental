@@ -6,7 +6,7 @@ import json
 import logging
 from datetime import datetime
 from model.post import Post
-from providers.provider_factory import get_provider
+from sentiment_service_providers.service_provider_factory import get_service_provider
 
 
 def lambda_handler(event, _):
@@ -36,7 +36,7 @@ def lambda_handler(event, _):
     if not isinstance(post_ids, list):
         raise ValueError("Invalid input format: post_ids must be a list")
 
-    provider = get_provider(logger=logger)
+    provider = get_service_provider(logger=logger)
 
     start_time = datetime.now()
     logger.info("Start constructing posts")

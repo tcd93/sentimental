@@ -8,7 +8,7 @@ import os
 import io
 import tarfile
 
-from providers.comprehend_provider import ComprehendProvider
+from sentiment_service_providers.comprehend_provider import ComprehendProvider
 from model.post import Post
 from model.job import Job
 

@@ -12,10 +12,10 @@ import boto3
 from model.job import Job
 from model.post import Post
 from model.sentiment import Sentiment
-from providers.sentiment_provider import SentimentProvider
+from sentiment_service_providers.sentiment_service_provider import SentimentServiceProvider
 
 
-class ComprehendProvider(SentimentProvider):
+class ComprehendProvider(SentimentServiceProvider):
     """AWS Comprehend implementation of the sentiment provider."""
 
     def get_provider_name(self) -> str:
