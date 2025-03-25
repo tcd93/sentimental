@@ -308,7 +308,7 @@ Resources:
             QueryLanguage: JSONata
             Comment: Map posts that are stored in S3
             Output: "{% $states.result.[*][*] %}"
-            Items: "{% $map($states.input.post_ids, function($v) { 'posts/' + $states.input.execution_id + '/' + $v }) %}"
+            Items: "{% $map($states.input.post_ids, function($v) { 'posts/' & $states.input.execution_id & '/' & $v }) %}"
             ItemProcessor:
               ProcessorConfig:
                 Mode: DISTRIBUTED
