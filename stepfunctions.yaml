@@ -70,13 +70,14 @@ Resources:
         States:
           GetConfiguration:
             Type: Task
+            QueryLanguage: JSONata
             Resource: "arn:aws:states:::aws-sdk:s3:getObject"
-            Parameters:
+            Arguments:
               Bucket: !Ref BucketName
               Key: "config/keywords_config.json"
-            ResultSelector:
-              Json.$: "States.StringToJson($.Body)"
-            OutputPath: "$.Json"
+            Output: "{% $parse($states.result.Body) %}"
+            Assign: # assign execution id to a variable so it can be used in Output of the SelectScrapers
+              execution_id: "{% $split($states.context.Execution.Id, ':')[-1] %}"
             Next: SelectScrapers
           SelectScrapers:
             Type: Parallel
@@ -109,10 +110,10 @@ Resources:
                             Key.$: States.Format('posts/{}/{}.json', $$.Map.Item.Value.execution_id, $$.Map.Item.Value.id)
                             Body.$: $$.Map.Item.Value
                           # output of the map:
-                          # [{"Body": {"id": "123"}, "Key": "posts/{execution_id}/123.json"}]
-                          # transform to: {"success": ["123"]}
+                          # [{"Body": {"id": "post_id_123"}, "Key": "posts/{execution_id}/post_id_123.json"}]
+                          # transform to: {"success": ["post_id_123"]}
                           ResultSelector:
-                            success.$: $[*].Key
+                            success.$: $[*].Body.id
                           Iterator:
                             StartAt: StoreRedditPostToS3
                             States:
@@ -178,7 +179,7 @@ Resources:
                             Body.$: $$.Map.Item.Value
                           # see StoreRedditPosts for explanation
                           ResultSelector:
-                            success.$: $[*].Key
+                            success.$: $[*].Body.id
                           Iterator:
                             StartAt: StoreSteamPostToS3
                             States:
@@ -218,16 +219,16 @@ Resources:
             # output of the map: 
             # (each branch returns a list object, then the map wrap it in another list)
             # note that there are error objectts mixed in, as we defined ToleratedFailurePercentage
-            # [[{"success": ["key1"]}, {"error": "timeout"}], [{"success": ["key2"]}]...]
+            # [[{"success": ["post_id_123"]}, {"error": "timeout"}], [{"success": ["post_id_456"]}]...]
             # transform to:
-            # ["key1", "key2"]
+            # {"post_ids": ["post_id_123", "post_id_456"], "execution_id": "execution_id_123"}
             QueryLanguage: JSONata
-            Output: "{% $states.result.[*][*].'success' %}"
+            Output: "{% { 'post_ids': $states.result.[*][*].'success', 'execution_id': $execution_id } %}"
             # add execution id so they can be stored in s3 /{execution_id}/{post_id}.json
             Arguments:
               source:
-                reddit: "{% [$map($states.input.source.reddit, function($v) { $merge([$v, { 'ephermeral_execution_id': $split($states.context.Execution.Id, ':')[-1] }]) })] %}"
-                steam: "{% [$map($states.input.source.steam, function($v) { $merge([$v, { 'ephermeral_execution_id': $split($states.context.Execution.Id, ':')[-1] }]) })] %}"
+                reddit: "{% [$map($states.input.source.reddit, function($v) { $merge([$v, { 'ephermeral_execution_id': $execution_id }]) })] %}"
+                steam: "{% [$map($states.input.source.steam, function($v) { $merge([$v, { 'ephermeral_execution_id': $execution_id }]) })] %}"
             Next: CreateSentimentJob
           CreateSentimentJob:
             Type: Task

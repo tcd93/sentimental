@@ -14,7 +14,10 @@ def lambda_handler(event, _):
     Create a sentiment analysis job for posts from multiple scrapers.
 
     Args:
-        event: Array of s3 keys of posts
+        event: {
+            "post_ids": [Post],
+            "execution_id": execution id of the step function
+        }
 
     Returns:
         Dict containing job information
@@ -26,15 +29,18 @@ def lambda_handler(event, _):
         "Creating sentiment analysis job with parameters: %s", json.dumps(event)
     )
 
+    post_ids = event["post_ids"]
+    execution_id = event["execution_id"]
+
     # event must be a list
-    if not isinstance(event, list):
-        raise ValueError("Invalid input format: event must be a list")
+    if not isinstance(post_ids, list):
+        raise ValueError("Invalid input format: post_ids must be a list")
 
     provider = get_provider(logger=logger)
 
     start_time = datetime.now()
     logger.info("Start constructing posts")
-    posts: list[Post] = [Post.from_s3(key, logger) for key in event]
+    posts: list[Post] = [Post.from_s3(f"posts/{execution_id}/{id}.json", logger) for id in post_ids]
     logger.info(
         "Posts constructed in %s seconds", (datetime.now() - start_time).total_seconds()
     )
