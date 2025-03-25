@@ -62,6 +62,7 @@ class Post:
             ),
             "body": self.body,
             "comments": self.comments,
+            "post_url": self.post_url,
         }
 
     def to_json(self) -> str:
