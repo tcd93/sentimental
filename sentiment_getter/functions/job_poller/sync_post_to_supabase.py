@@ -13,7 +13,7 @@ import boto3
 
 def lambda_handler(event, _):
     """
-    Sync posts to Supabase. Input is a list of post keys.
+    Sync posts to Supabase. Input is a list of posts s3 keys (batch of 5 items)
     """
     logger = logging.getLogger()
     logger.setLevel(logging.INFO)

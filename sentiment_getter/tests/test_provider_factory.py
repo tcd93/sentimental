@@ -7,8 +7,6 @@ import logging
 
 from sentiment_service_providers.service_provider_factory import get_service_provider
 from sentiment_service_providers.chatgpt_provider import ChatGPTProvider
-from sentiment_service_providers.comprehend_provider import ComprehendProvider
-
 
 class TestProviderFactory(unittest.TestCase):
     """Unit tests for provider factory."""
@@ -23,13 +21,6 @@ class TestProviderFactory(unittest.TestCase):
         """Test get_provider returns ChatGPTProvider when OPENAI_API_KEY is set."""
         provider = get_service_provider(self.logger)
         self.assertIsInstance(provider, ChatGPTProvider)
-        self.assertEqual(provider.logger, self.logger)
-
-    @patch.dict(os.environ, {"OPENAI_API_KEY": ""}, clear=True)
-    def test_get_provider_comprehend(self):
-        """Test get_provider returns ComprehendProvider when OPENAI_API_KEY is not set."""
-        provider = get_service_provider(self.logger)
-        self.assertIsInstance(provider, ComprehendProvider)
         self.assertEqual(provider.logger, self.logger)
 
 
