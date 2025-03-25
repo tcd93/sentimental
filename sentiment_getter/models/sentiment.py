@@ -6,8 +6,8 @@ import os
 from dataclasses import dataclass
 import json
 import logging
-from model.job import Job
-from model.post import Post
+from models.job import Job
+from models.post import Post
 from supabase import create_client, Client
 
 @dataclass

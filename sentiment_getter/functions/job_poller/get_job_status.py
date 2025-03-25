@@ -4,7 +4,7 @@ Lambda function to get the status of a sentiment analysis job
 
 import logging
 
-from model.job import Job
+from models.job import Job
 from sentiment_service_providers.service_provider_factory import get_service_provider
 
 

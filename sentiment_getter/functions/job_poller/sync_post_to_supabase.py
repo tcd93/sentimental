@@ -5,8 +5,8 @@ Lambda function to run after Mapping job bucket.
 import logging
 import os
 
-from model.job import Job
-from model.post import Post
+from models.job import Job
+from models.post import Post
 from sentiment_service_providers.service_provider_factory import get_service_provider
 import boto3
 

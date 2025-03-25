@@ -5,7 +5,7 @@ Lambda function to create sentiment analysis jobs from batches of posts.
 import json
 import logging
 from datetime import datetime
-from model.post import Post
+from models.post import Post
 from sentiment_service_providers.service_provider_factory import get_service_provider
 
 

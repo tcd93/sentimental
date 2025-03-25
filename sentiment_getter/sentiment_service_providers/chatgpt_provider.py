@@ -9,9 +9,9 @@ from datetime import datetime
 
 import openai
 import boto3
-from model.job import ChatGPTProviderData, Job
-from model.post import Post
-from model.sentiment import Sentiment
+from models.job import ChatGPTProviderData, Job
+from models.post import Post
+from models.sentiment import Sentiment
 from sentiment_service_providers.sentiment_service_provider import SentimentServiceProvider
 
 class ChatGPTProvider(SentimentServiceProvider):

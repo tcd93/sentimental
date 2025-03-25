@@ -9,8 +9,8 @@ import io
 import tarfile
 
 from sentiment_service_providers.comprehend_provider import ComprehendProvider
-from model.post import Post
-from model.job import Job
+from models.post import Post
+from models.job import Job
 
 
 class TestComprehendProvider(unittest.TestCase):

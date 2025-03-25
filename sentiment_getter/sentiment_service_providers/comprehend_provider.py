@@ -9,9 +9,9 @@ import tarfile
 from datetime import datetime
 
 import boto3
-from model.job import Job
-from model.post import Post
-from model.sentiment import Sentiment
+from models.job import Job
+from models.post import Post
+from models.sentiment import Sentiment
 from sentiment_service_providers.sentiment_service_provider import SentimentServiceProvider
 
 
@@ -114,9 +114,6 @@ class ComprehendProvider(SentimentServiceProvider):
                 ],
             )
 
-            # Process each file's lines (each line is a processed post) into sentiments
-            # Assumming that they are in the same order as the posts
-            # Edit: there is a `batch_detect_sentiment` from boto3, I am stupid
             sentiments = []
             for f in files:
                 lines = f.read().decode("utf-8").strip().split("\n")

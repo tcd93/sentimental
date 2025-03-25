@@ -4,7 +4,7 @@ import unittest
 from datetime import datetime
 import logging
 
-from model.post import Post
+from models.post import Post
 
 
 class TestPost(unittest.TestCase):

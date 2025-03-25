@@ -4,9 +4,9 @@ Abstract interface for sentiment analysis providers.
 
 from abc import ABC, abstractmethod
 import logging
-from model.job import Job
-from model.post import Post
-from model.sentiment import Sentiment
+from models.job import Job
+from models.post import Post
+from models.sentiment import Sentiment
 
 class SentimentServiceProvider(ABC):
     """Base interface for sentiment analysis providers."""

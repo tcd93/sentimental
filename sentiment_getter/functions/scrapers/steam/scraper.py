@@ -5,7 +5,7 @@ Module for scraping Steam reviews.
 import logging
 from datetime import datetime
 import requests
-from model.post import Post
+from models.post import Post
 
 STEAM_API_URL = "https://store.steampowered.com/api/storesearch"
 STEAM_REVIEWS_API_URL = "https://store.steampowered.com/appreviews/{app_id}"

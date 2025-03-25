@@ -9,7 +9,7 @@ import logging
 import praw
 from openai import OpenAI
 from praw.models import Subreddit, Submission
-from model.post import Post
+from models.post import Post
 
 
 # Initialize Reddit client only when needed

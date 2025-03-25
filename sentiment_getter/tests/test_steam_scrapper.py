@@ -4,7 +4,7 @@ import unittest
 from unittest.mock import patch, MagicMock
 from datetime import datetime
 from functions.scrapers.steam.scraper import get_app_id, get_steam_reviews
-from model.post import Post
+from models.post import Post
 
 
 class TestSteamScrapper(unittest.TestCase):

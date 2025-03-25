@@ -7,10 +7,10 @@ import json
 import os
 
 from sentiment_service_providers.chatgpt_provider import ChatGPTProvider
-from model.post import Post
-from model.sentiment import Sentiment
-from model.job import Job
-from model.job import ChatGPTProviderData
+from models.post import Post
+from models.sentiment import Sentiment
+from models.job import Job
+from models.job import ChatGPTProviderData
 
 
 class TestChatGPTProvider(unittest.TestCase):
