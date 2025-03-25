@@ -1,4 +1,4 @@
-AWSTemplateFormatVersion: '2010-09-09'
+AWSTemplateFormatVersion: "2010-09-09"
 Transform: AWS::Serverless-2016-10-31
 Description: Step Functions for Sentiment Analysis
 
@@ -34,7 +34,7 @@ Resources:
     Properties:
       LogGroupName: !Sub /aws/vendedlogs/states/KeywordPipeline
       RetentionInDays: 7
-      
+
   JobProcessorLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
@@ -218,7 +218,7 @@ Resources:
                       TopicArn: !Ref ErrorTopicArn
                       "Message.$": "$"
                     End: true
-            # output of the map: 
+            # output of the map:
             # (each branch returns a list object, then the map wrap it in another list)
             # note that there are error objectts mixed in, as we defined ToleratedFailurePercentage
             # [[{"success": ["post_id_123"]}, {"error": "timeout"}], [{"success": ["post_id_456"]}]...]
@@ -247,14 +247,14 @@ Resources:
               StateMachineArn: !Ref JobProcessorPipeline
               Input.$: "$"
             End: true
-            
+
       # Add the Events section directly to the StateMachine
       Events:
         HourlyTrigger:
           Type: Schedule
           Properties:
             Schedule: rate(1 hour)
-            Input: "{}"  # Empty input, since we're loading from S3
+            Input: "{}" # Empty input, since we're loading from S3
 
   # Second pipeline - handles job processing
   JobProcessorPipeline:
@@ -308,7 +308,7 @@ Resources:
             QueryLanguage: JSONata
             Comment: Map posts that are stored in S3
             Output: "{% $states.result.[*][*] %}"
-            Items: "{% $map($states.input.post_ids, function($v) { 'posts/' & $states.input.execution_id & '/' & $v }) %}"
+            Items: "{% $map($states.input.post_ids, function($v) { 'posts/' & $states.input.execution_id & '/' & $v & '.json' }) %}"
             ItemProcessor:
               ProcessorConfig:
                 Mode: DISTRIBUTED
