@@ -41,10 +41,10 @@ class SentimentServiceProvider(ABC):
         """
 
     @abstractmethod
-    def query_and_update_job(self, job: Job) -> Job:
+    def query(self, job: Job) -> tuple[str, dict[str, any]]:
         """
         Check the status of a sentiment analysis job from provider's API
-        and update the job object with the new status and provider data.
+        and return the status ("COMPLETED", "FAILED", "IN_PROGRESS") and provider data
         """
 
     @abstractmethod

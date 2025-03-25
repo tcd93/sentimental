@@ -22,4 +22,8 @@ def lambda_handler(event, _):
     job = Job.from_dict(event, logger)
     provider = get_service_provider(logger=logger, provider_name=job.provider)
 
-    return provider.query_and_update_job(job).to_dict()
+    status, provider_data = provider.query(job)
+    job.status = status
+    job.provider_data = provider_data
+
+    return job.to_dict()

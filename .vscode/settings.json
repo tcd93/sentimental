@@ -3,4 +3,9 @@
         ".",
         "sentiment_getter"
     ],
+    "python.testing.pytestArgs": [
+        "sentiment_getter"
+    ],
+    "python.testing.unittestEnabled": false,
+    "python.testing.pytestEnabled": true,
 }

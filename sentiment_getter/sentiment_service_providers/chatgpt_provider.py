@@ -12,7 +12,10 @@ import boto3
 from models.job import ChatGPTProviderData, Job
 from models.post import Post
 from models.sentiment import Sentiment
-from sentiment_service_providers.sentiment_service_provider import SentimentServiceProvider
+from sentiment_service_providers.sentiment_service_provider import (
+    SentimentServiceProvider,
+)
+
 
 class ChatGPTProvider(SentimentServiceProvider):
     """OpenAI ChatGPT implementation of the sentiment provider."""
@@ -20,15 +23,14 @@ class ChatGPTProvider(SentimentServiceProvider):
     def get_provider_name(self) -> str:
         return "chatgpt"
 
-    def create_sentiment_job(self, posts: list[Post], job_name: str, execution_id: str) -> Job:
+    def create_sentiment_job(
+        self, posts: list[Post], job_name: str, execution_id: str
+    ) -> Job:
         if not posts:
             raise ValueError("No posts to analyze")
 
         openai.api_key = os.environ["OPENAI_API_KEY"]
 
-        return self._create_batch_job(posts, job_name, execution_id)
-
-    def _create_batch_job(self, posts: list[Post], job_name: str, execution_id: str) -> Job:
         # Create a temporary file with JSONL format for batch API
         temp_file_path = f"/tmp/{job_name}.jsonl"
         job_id = str(uuid.uuid4())
@@ -100,11 +102,15 @@ class ChatGPTProvider(SentimentServiceProvider):
             execution_id=execution_id,
         )
 
-    def query_and_update_job(self, job: Job) -> Job:
+    def query(self, job: Job) -> tuple[str, ChatGPTProviderData]:
         batch_id = job.provider_data.openai_batch_id
 
         batch_response = openai.batches.retrieve(batch_id)
-
+        provider_data = ChatGPTProviderData(
+            openai_batch_id=job.provider_data.openai_batch_id,
+            output_file_id=batch_response.output_file_id,
+            error_file_id=batch_response.error_file_id,
+        )
         # Map OpenAI status to our status
         openai_status = batch_response.status
         if openai_status == "completed":
@@ -112,22 +118,17 @@ class ChatGPTProvider(SentimentServiceProvider):
                 "OpenAI batch job completed, batch_response: %s",
                 batch_response.to_json(indent=2),
             )
-            # Update the job with the output file ID
-            job.provider_data = ChatGPTProviderData(
-                openai_batch_id=job.provider_data.openai_batch_id,
-                output_file_id=batch_response.output_file_id,
-                error_file_id=batch_response.error_file_id,
-            )
-            job.status = "COMPLETED"
-            return job
+            status = "COMPLETED"
+            return status, provider_data
         if openai_status in ["failed", "cancelling", "cancelled", "expired"]:
             self.logger.error("OpenAI batch job %s: %s", openai_status, batch_response)
-            job.status = "FAILED"
-            return job
+            status = "FAILED"
+            return status, provider_data
         if openai_status == "in_progress":
-            job.status = "IN_PROGRESS"
-            return job
-        return job
+            status = "IN_PROGRESS"
+            return status, provider_data
+
+        raise ValueError(f"Unknown OpenAI batch job status: {openai_status}")
 
     def process_completed_job(self, job: Job, posts: list[Post]) -> list[Sentiment]:
         if job.provider_data.error_file_id:
@@ -164,7 +165,9 @@ class ChatGPTProvider(SentimentServiceProvider):
             self.logger.debug("Processing line: %s", line)
             openai_result = json.loads(line)
             if openai_result["response"]["status_code"] != 200:
-                self.logger.warning("Unexpected response: %s", openai_result["response"])
+                self.logger.warning(
+                    "Unexpected response: %s", openai_result["response"]
+                )
                 continue
 
             post_id = openai_result["custom_id"]

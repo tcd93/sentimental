@@ -56,7 +56,7 @@ class TestChatGPTProvider(unittest.TestCase):
             post_keys=[self.sample_post.get_s3_key()],
             provider="chatgpt",
             provider_data=ChatGPTProviderData(
-                openai_batch_id="batch-123", output_file_id=None
+                openai_batch_id="batch-123"
             ),
         )
 
@@ -65,10 +65,10 @@ class TestChatGPTProvider(unittest.TestCase):
             status="completed", output_file_id="output-123"
         )
 
-        self.provider.query_and_update_job(job)
+        status, provider_data = self.provider.query(job)
 
-        self.assertEqual(job.status, "COMPLETED")
-        self.assertEqual(job.provider_data.output_file_id, "output-123")
+        self.assertEqual(status, "COMPLETED")
+        self.assertEqual(provider_data.output_file_id, "output-123")
 
     @patch("openai.batches.retrieve")
     def test_check_job_status_failed(self, mock_batch_retrieve):
@@ -80,19 +80,17 @@ class TestChatGPTProvider(unittest.TestCase):
             created_at=datetime.now(),
             post_keys=[self.sample_post.get_s3_key()],
             provider="chatgpt",
-            provider_data=ChatGPTProviderData(
-                openai_batch_id="batch-123",
-                output_file_id=None,
-                error_file_id="error-123",
-            ),
+            provider_data=ChatGPTProviderData(openai_batch_id="batch-123"),
         )
 
         # Mock OpenAI response for failed job
-        mock_batch_retrieve.return_value = MagicMock(status="failed")
+        mock_batch_retrieve.return_value = MagicMock(
+            status="failed", error_file_id="error-123"
+        )
 
-        self.provider.query_and_update_job(job)
-        self.assertEqual(job.status, "FAILED")
-        self.assertEqual(job.provider_data.error_file_id, "error-123")
+        status, provider_data = self.provider.query(job)
+        self.assertEqual(status, "FAILED")
+        self.assertEqual(provider_data.error_file_id, "error-123")
 
     @patch("openai.files.content")
     def test_process_completed_job(self, mock_file_content):
@@ -157,7 +155,9 @@ class TestChatGPTProvider(unittest.TestCase):
 
     @patch("openai.files.content")
     @patch("boto3.client")
-    def test_process_completed_job_no_output_file(self, mock_boto3_client, mock_file_content):
+    def test_process_completed_job_no_output_file(
+        self, mock_boto3_client, mock_file_content
+    ):
         """Test process_completed_job when output_file_id is not set."""
         # Mock S3 client
         mock_s3 = MagicMock()
