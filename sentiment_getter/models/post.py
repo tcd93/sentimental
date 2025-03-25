@@ -24,10 +24,6 @@ class Post:
     post_url: str = ""  # Optional URL to the original post
     execution_id: str | None = None
 
-    def get_s3_key(self) -> str:
-        """Get the S3 key for the Post"""
-        return f"posts/{self.execution_id + '/' if self.execution_id else ''}{self.id}.json"
-
     def get_text(self) -> str:
         """
         Get the text of the post and comments as a single line for processing

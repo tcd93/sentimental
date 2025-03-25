@@ -95,7 +95,7 @@ class ChatGPTProvider(SentimentServiceProvider):
             job_name=job_name,
             status="SUBMITTED",
             created_at=datetime.now(),
-            post_keys=[post.get_s3_key() for post in posts],
+            post_ids=[post.id for post in posts],
             provider=self.get_provider_name(),
             provider_data=ChatGPTProviderData(openai_batch_id=batch_id),
             execution_id=execution_id,

@@ -54,7 +54,7 @@ class Job:
     job_name: str
     status: str
     created_at: datetime
-    post_keys: list[str]
+    post_ids: list[str]
     provider: str
     provider_data: ChatGPTProviderData | ComprehendProviderData = None
     execution_id: str | None = None
@@ -84,7 +84,7 @@ class Job:
                 if isinstance(data["created_at"], str)
                 else data["created_at"]
             ),
-            post_keys=data["post_keys"],
+            post_ids=data["post_ids"],
             provider=data["provider"],
             provider_data=provider_data,
             execution_id=data.get("execution_id"),
@@ -106,7 +106,7 @@ class Job:
                 if isinstance(self.created_at, datetime)
                 else self.created_at
             ),
-            "post_keys": self.post_keys,
+            "post_ids": self.post_ids,
             "provider": self.provider,
             "provider_data": (
                 self.provider_data.to_dict() if self.provider_data else None

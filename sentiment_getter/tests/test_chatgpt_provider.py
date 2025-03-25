@@ -53,7 +53,7 @@ class TestChatGPTProvider(unittest.TestCase):
             job_name="Test Job",
             status="SUBMITTED",
             created_at=datetime.now(),
-            post_keys=[self.sample_post.get_s3_key()],
+            post_ids=[self.sample_post.id],
             provider="chatgpt",
             provider_data=ChatGPTProviderData(
                 openai_batch_id="batch-123"
@@ -78,7 +78,7 @@ class TestChatGPTProvider(unittest.TestCase):
             job_name="Test Job",
             status="SUBMITTED",
             created_at=datetime.now(),
-            post_keys=[self.sample_post.get_s3_key()],
+            post_ids=[self.sample_post.id],
             provider="chatgpt",
             provider_data=ChatGPTProviderData(openai_batch_id="batch-123"),
         )
@@ -101,7 +101,7 @@ class TestChatGPTProvider(unittest.TestCase):
             job_name="Test Job",
             status="COMPLETED",
             created_at=datetime.now(),
-            post_keys=[self.sample_post.get_s3_key()],
+            post_ids=[self.sample_post.id],
             provider="chatgpt",
             provider_data=ChatGPTProviderData(
                 openai_batch_id="batch-123", output_file_id="output-123"
@@ -173,7 +173,7 @@ class TestChatGPTProvider(unittest.TestCase):
             job_name="Test Job",
             status="COMPLETED",
             created_at=datetime.now(),
-            post_keys=[self.sample_post.get_s3_key()],
+            post_ids=[self.sample_post.id],
             provider="chatgpt",
             provider_data=ChatGPTProviderData(
                 openai_batch_id="batch-123",
