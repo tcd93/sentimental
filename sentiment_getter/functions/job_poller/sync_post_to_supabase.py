@@ -24,7 +24,7 @@ def lambda_handler(event, _):
 
     # batch input is configured in Map state and key name is hardcoded
     job = event["BatchInput"]["Job"]
-    job = Job.from_dict(job, logger)
+    job = Job.from_dict(job)
     assert job.status == "COMPLETED", "Job is not completed"
 
     provider = get_service_provider(logger=logger, provider_name=job.provider)

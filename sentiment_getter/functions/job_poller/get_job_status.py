@@ -19,7 +19,7 @@ def lambda_handler(event, _):
     logger = logging.getLogger()
     logger.setLevel(logging.INFO)
 
-    job = Job.from_dict(event, logger)
+    job = Job.from_dict(event)
     provider = get_service_provider(logger=logger, provider_name=job.provider)
 
     status, provider_data = provider.query(job)
