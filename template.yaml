@@ -37,6 +37,145 @@ Resources:
     Properties:
       DisplayName: SentimentAnalysisErrors
 
+  # Glue Catalog Resources
+  SentimentalDatabase:
+    Type: AWS::Glue::Database
+    Properties:
+      CatalogId: !Ref AWS::AccountId
+      DatabaseInput:
+        Name: sentimental
+        Description: Database for sentiment analysis data
+
+  PostTable:
+    Type: AWS::Glue::Table
+    Properties:
+      CatalogId: !Ref AWS::AccountId
+      DatabaseName: !Ref SentimentalDatabase
+      TableInput:
+        Name: post
+        TableType: EXTERNAL_TABLE
+        Parameters:
+          table_type: ICEBERG
+          iceberg.field.id.current: "true"
+          iceberg.field.id.id: "1"
+          iceberg.field.id.optional: "false"
+          iceberg.field.execution_id.current: "true"
+          iceberg.field.execution_id.id: "2"
+          iceberg.field.execution_id.optional: "true"
+          iceberg.field.keyword.current: "true"
+          iceberg.field.keyword.id: "3"
+          iceberg.field.keyword.optional: "false"
+          iceberg.field.source.current: "true"
+          iceberg.field.source.id: "4"
+          iceberg.field.source.optional: "true"
+          iceberg.field.title.current: "true"
+          iceberg.field.title.id: "5"
+          iceberg.field.title.optional: "true"
+          iceberg.field.created_at.current: "true"
+          iceberg.field.created_at.id: "6"
+          iceberg.field.created_at.optional: "false"
+          iceberg.field.body.current: "true"
+          iceberg.field.body.id: "7"
+          iceberg.field.body.optional: "true"
+          iceberg.field.comments.current: "true"
+          iceberg.field.comments.id: "8"
+          iceberg.field.comments.optional: "true"
+          iceberg.field.post_url.current: "true"
+          iceberg.field.post_url.id: "9"
+          iceberg.field.post_url.optional: "true"
+        StorageDescriptor:
+          Columns:
+            - Name: id
+              Type: string
+            - Name: execution_id
+              Type: string
+            - Name: keyword
+              Type: string
+            - Name: source
+              Type: string
+            - Name: title
+              Type: string
+            - Name: created_at
+              Type: timestamp
+            - Name: body
+              Type: string
+            - Name: comments
+              Type: array<string>
+            - Name: post_url
+              Type: string
+          Location: !Sub s3://${BucketName}/iceberg
+          Compressed: false
+          NumberOfBuckets: 0
+          SortColumns: []
+          StoredAsSubDirectories: false
+
+  # Kinesis Firehose Resources
+  PostDeliveryStream:
+    Type: AWS::KinesisFirehose::DeliveryStream
+    Properties:
+      DeliveryStreamName: !Sub ${AWS::StackName}-post-stream
+      DeliveryStreamType: DirectPut
+      ExtendedS3DestinationConfiguration:
+        BucketARN: !GetAtt SentimentBucket.Arn
+        RoleARN: !GetAtt FirehoseServiceRole.Arn
+        Prefix: iceberg/
+        ErrorOutputPrefix: errors/
+        BufferingHints:
+          IntervalInSeconds: 180
+          SizeInMBs: 8
+        CloudWatchLoggingOptions:
+          Enabled: true
+          LogGroupName: !Ref FirehoseLogGroup
+          LogStreamName: !Sub ${AWS::StackName}-post-stream
+
+  # IAM Roles
+  FirehoseServiceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: firehose.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: FirehoseServicePolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:PutLogEvents
+                  - logs:CreateLogStream
+                  - logs:CreateLogGroup
+                  - logs:DescribeLogStreams
+                Resource: !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/firehose/*
+              - Effect: Allow
+                Action:
+                  - s3:PutObject
+                  - s3:GetObject
+                  - s3:ListBucket
+                  - s3:DeleteObject
+                Resource:
+                  - !Sub ${SentimentBucket.Arn}/*
+                  - !Sub ${SentimentBucket.Arn}
+              - Effect: Allow
+                Action:
+                  - glue:GetTable
+                  - glue:GetTableVersion
+                  - glue:GetTableVersions
+                  - glue:CreateTable
+                  - glue:UpdateTable
+                Resource: !Sub arn:aws:glue:${AWS::Region}:${AWS::AccountId}:table/${SentimentalDatabase}/*
+
+  # Log Groups
+  FirehoseLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/firehose/${AWS::StackName}-post-stream
+      RetentionInDays: 7
+
   # Python Dependencies Layer
   PythonDependenciesLayer:
     Type: AWS::Serverless::LayerVersion
@@ -73,16 +212,16 @@ Resources:
       LogGroupName: !Sub /aws/lambda/${AWS::StackName}-job-poller
       RetentionInDays: 7
 
-  KeywordPipelineLogGroup:
+  KeywordAPIPipelineLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
-      LogGroupName: !Sub /aws/vendedlogs/states/KeywordPipeline
+      LogGroupName: !Sub /aws/vendedlogs/states/KeywordAPIPipeline
       RetentionInDays: 7
 
-  JobProcessorLogGroup:
+  JobProcessingLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
-      LogGroupName: !Sub /aws/vendedlogs/states/JobProcessorPipeline
+      LogGroupName: !Sub /aws/vendedlogs/states/JobProcessingPipeline
       RetentionInDays: 7
 
   # Lambda Functions
@@ -185,7 +324,7 @@ Resources:
           OPENAI_API_KEY: !Ref OpenAIApiKey
 
   # Step Functions
-  KeywordPipeline:
+  KeywordAPIPipeline:
     Type: AWS::Serverless::StateMachine
     Properties:
       Type: STANDARD
@@ -194,7 +333,7 @@ Resources:
         IncludeExecutionData: true
         Destinations:
           - CloudWatchLogsLogGroup:
-              LogGroupArn: !GetAtt KeywordPipelineLogGroup.Arn
+              LogGroupArn: !GetAtt KeywordAPIPipelineLogGroup.Arn
       Policies:
         - CloudWatchLogsFullAccess
         - LambdaInvokePolicy:
@@ -208,6 +347,13 @@ Resources:
         - SNSPublishMessagePolicy:
             TopicName: !Ref ErrorTopic
         - AWSStepFunctionsFullAccess
+        - Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Action:
+                - firehose:PutRecord
+                - firehose:PutRecordBatch
+              Resource: !GetAtt PostDeliveryStream.Arn
       Definition:
         StartAt: GetConfiguration
         States:
@@ -245,28 +391,14 @@ Resources:
                             FunctionName: !Ref RedditScraperFunction
                             Payload.$: "$"
                           OutputPath: "$.Payload"
-                          Next: StoreRedditPosts
-                        StoreRedditPosts:
-                          Type: Map
-                          ItemsPath: $.posts
-                          ItemSelector:
-                            Key.$: States.Format('posts/{}/{}.json', $$.Map.Item.Value.execution_id, $$.Map.Item.Value.id)
-                            Body.$: $$.Map.Item.Value
-                          ResultSelector:
-                            success.$: $[*].Body.id
-                          Iterator:
-                            StartAt: StoreRedditPostToS3
-                            States:
-                              StoreRedditPostToS3:
-                                Type: Task
-                                Resource: "arn:aws:states:::aws-sdk:s3:putObject"
-                                Parameters:
-                                  Bucket: !Ref BucketName
-                                  Key.$: $.Key
-                                  Body.$: $.Body
-                                  ContentType: application/json
-                                ResultPath: null
-                                End: true
+                          Next: PutRedditPostsToFirehose
+                        PutRedditPostsToFirehose:
+                          Type: Task
+                          QueryLanguage: JSONata
+                          Resource: "arn:aws:states:::aws-sdk:firehose:putRecordBatch"
+                          Arguments:
+                            DeliveryStreamName: !Ref PostDeliveryStream
+                            Records: "{% $map($states.input.posts, function($v) { {'Data': $string($v) } }) %}"
                           End: true
                     End: true
                     Retry:
@@ -310,28 +442,14 @@ Resources:
                             FunctionName: !Ref SteamScraperFunction
                             Payload.$: "$"
                           OutputPath: "$.Payload"
-                          Next: StoreSteamPosts
-                        StoreSteamPosts:
-                          Type: Map
-                          ItemsPath: "$.posts"
-                          ItemSelector:
-                            Key.$: States.Format('posts/{}/{}.json', $$.Map.Item.Value.execution_id, $$.Map.Item.Value.id)
-                            Body.$: $$.Map.Item.Value
-                          ResultSelector:
-                            success.$: $[*].Body.id
-                          Iterator:
-                            StartAt: StoreSteamPostToS3
-                            States:
-                              StoreSteamPostToS3:
-                                Type: Task
-                                Resource: "arn:aws:states:::aws-sdk:s3:putObject"
-                                Parameters:
-                                  Bucket: !Ref BucketName
-                                  Key.$: $.Key
-                                  Body.$: $.Body
-                                  ContentType: application/json
-                                ResultPath: null
-                                End: true
+                          Next: PutSteamPostsToFirehose
+                        PutSteamPostsToFirehose:
+                          Type: Task
+                          QueryLanguage: JSONata
+                          Resource: "arn:aws:states:::aws-sdk:firehose:putRecordBatch"
+                          Arguments:
+                            DeliveryStreamName: !Ref PostDeliveryStream
+                            Records: "{% $map($states.input.posts, function($v) { {'Data': $string($v) } }) %}"
                           End: true
                     End: true
                     Retry:
@@ -369,12 +487,12 @@ Resources:
             Parameters:
               FunctionName: !Ref SentimentJobCreatorFunction
               Payload.$: $
-            Next: StartJobProcessor
-          StartJobProcessor:
+            Next: StartJobProcessing
+          StartJobProcessing:
             Type: Task
             Resource: "arn:aws:states:::states:startExecution"
             Parameters:
-              StateMachineArn: !Ref JobProcessorPipeline
+              StateMachineArn: !Ref JobProcessingPipeline
               Input.$: "$"
             End: true
       Events:
@@ -383,8 +501,9 @@ Resources:
           Properties:
             Schedule: rate(1 hour)
             Input: "{}"
+            Enabled: false
 
-  JobProcessorPipeline:
+  JobProcessingPipeline:
     Type: AWS::Serverless::StateMachine
     Properties:
       Type: STANDARD
@@ -393,7 +512,7 @@ Resources:
         IncludeExecutionData: true
         Destinations:
           - CloudWatchLogsLogGroup:
-              LogGroupArn: !GetAtt JobProcessorLogGroup.Arn
+              LogGroupArn: !GetAtt JobProcessingLogGroup.Arn
       Policies:
         - CloudWatchLogsFullAccess
         - LambdaInvokePolicy:
@@ -502,9 +621,12 @@ Outputs:
   ErrorTopicArn:
     Description: SNS topic ARN for errors
     Value: !GetAtt ErrorTopic.TopicArn
-  KeywordPipelineArn:
+  KeywordAPIPipelineArn:
     Description: Step Functions ARN for the keyword pipeline
-    Value: !Ref KeywordPipeline
-  JobProcessorPipelineArn:
+    Value: !Ref KeywordAPIPipeline
+  JobProcessingPipelineArn:
     Description: Step Functions ARN for the job processor pipeline
-    Value: !Ref JobProcessorPipeline
+    Value: !Ref JobProcessingPipeline
+  PostDeliveryStreamName:
+    Description: Kinesis Firehose delivery stream name
+    Value: !Ref PostDeliveryStream
