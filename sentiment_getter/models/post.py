@@ -45,11 +45,7 @@ class Post:
             "keyword": self.keyword,
             "source": self.source,
             "title": self.title,
-            "created_at": (
-                self.created_at.isoformat()
-                if isinstance(self.created_at, datetime)
-                else self.created_at
-            ),
+            "created_at": self.created_at.timestamp(),
             "body": self.body,
             "comments": self.comments,
             "post_url": self.post_url,
@@ -62,9 +58,8 @@ class Post:
     @classmethod
     def from_dict(cls, data: dict) -> "Post":
         """Create Post from dictionary."""
-        # Convert ISO format string back to datetime
-        if isinstance(data["created_at"], str):
-            data["created_at"] = datetime.fromisoformat(data["created_at"])
+        if isinstance(data["created_at"], float):
+            data["created_at"] = datetime.fromtimestamp(data["created_at"])
         return cls(**data)
 
     @classmethod
