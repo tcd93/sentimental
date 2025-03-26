@@ -1,6 +1,6 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
-Description: Main template for Sentiment Analysis Pipeline
+Description: Complete Sentiment Analysis Pipeline Infrastructure
 
 Parameters:
   RedditClientId:
@@ -8,8 +8,6 @@ Parameters:
   RedditClientSecret:
     Type: String
     NoEcho: true
-  BucketName:
-    Type: String
   OpenAIApiKey:
     Type: String
     NoEcho: true
@@ -19,48 +17,494 @@ Parameters:
   SupabaseKey:
     Type: String
     NoEcho: true
+  BucketName:
+    Type: String
 
 Resources:
-  # Include the infrastructure components
-  InfrastructureStack:
-    Type: AWS::CloudFormation::Stack
+  # Infrastructure Resources
+  SentimentBucket:
+    Type: AWS::S3::Bucket
     Properties:
-      TemplateURL: infrastructure.yaml
-      Parameters:
-        BucketName: !Ref BucketName
+      BucketName: !Ref BucketName
+      LifecycleConfiguration:
+        Rules:
+          - Id: DeleteOldObjects
+            Status: Enabled
+            ExpirationInDays: 7
 
-  # Include the Lambda functions
-  LambdaStack:
-    Type: AWS::CloudFormation::Stack
+  ErrorTopic:
+    Type: AWS::SNS::Topic
     Properties:
-      TemplateURL: lambdas.yaml
-      Parameters:
-        RedditClientId: !Ref RedditClientId
-        RedditClientSecret: !Ref RedditClientSecret
-        OpenAIApiKey: !Ref OpenAIApiKey
-        SupabaseUrl: !Ref SupabaseUrl
-        SupabaseKey: !Ref SupabaseKey
-        BucketName: !Ref BucketName
+      DisplayName: SentimentAnalysisErrors
 
-  # Include the Step Functions
-  StepFunctionsStack:
-    Type: AWS::CloudFormation::Stack
+  # Python Dependencies Layer
+  PythonDependenciesLayer:
+    Type: AWS::Serverless::LayerVersion
     Properties:
-      TemplateURL: stepfunctions.yaml
-      Parameters:
-        RedditScraperName: !GetAtt LambdaStack.Outputs.RedditScraperFunctionName
-        SteamScraperName: !GetAtt LambdaStack.Outputs.SteamScraperFunctionName
-        SentimentJobCreatorName: !GetAtt LambdaStack.Outputs.SentimentJobCreatorFunctionName
-        GetJobStatusName: !GetAtt LambdaStack.Outputs.GetJobStatusFunctionName
-        SyncPostToSupabaseName: !GetAtt LambdaStack.Outputs.SyncPostToSupabaseFunctionName
-        BucketName: !Ref BucketName
-        ErrorTopicName: !GetAtt InfrastructureStack.Outputs.ErrorTopicName
-        ErrorTopicArn: !GetAtt InfrastructureStack.Outputs.ErrorTopicArn
+      LayerName: python-deps
+      Description: Python dependencies for social media APIs
+      ContentUri: layers/python-api-packages.zip
+      CompatibleRuntimes:
+        - python3.12
+      RetentionPolicy: Retain
+
+  # Log Groups
+  RedditScraperLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/${AWS::StackName}-reddit-scraper
+      RetentionInDays: 7
+
+  SteamScraperLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/${AWS::StackName}-steam-scraper
+      RetentionInDays: 7
+
+  SentimentJobCreatorLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/${AWS::StackName}-sentiment-job-creator
+      RetentionInDays: 7
+
+  JobPollerLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/${AWS::StackName}-job-poller
+      RetentionInDays: 7
+
+  KeywordPipelineLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/vendedlogs/states/KeywordPipeline
+      RetentionInDays: 7
+
+  JobProcessorLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/vendedlogs/states/JobProcessorPipeline
+      RetentionInDays: 7
+
+  # Lambda Functions
+  RedditScraperFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: sentiment_getter/
+      Handler: functions/scrapers/reddit/reddit.lambda_handler
+      Runtime: python3.12
+      Timeout: 60
+      MemorySize: 192
+      Layers:
+        - !Ref PythonDependenciesLayer
+      LoggingConfig:
+        LogGroup: !Ref RedditScraperLogGroup
+      Environment:
+        Variables:
+          REDDIT_CLIENT_ID: !Ref RedditClientId
+          REDDIT_CLIENT_SECRET: !Ref RedditClientSecret
+          OPENAI_API_KEY: !Ref OpenAIApiKey
+          S3_BUCKET_NAME: !Ref BucketName
+      Policies:
+        - S3CrudPolicy:
+            BucketName: !Ref BucketName
+
+  SteamScraperFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: sentiment_getter/
+      Handler: functions/scrapers/steam/steam.lambda_handler
+      Runtime: python3.12
+      Timeout: 30
+      Layers:
+        - !Ref PythonDependenciesLayer
+      LoggingConfig:
+        LogGroup: !Ref SteamScraperLogGroup
+      Environment:
+        Variables:
+          S3_BUCKET_NAME: !Ref BucketName
+          OPENAI_API_KEY: !Ref OpenAIApiKey
+      Policies:
+        - S3CrudPolicy:
+            BucketName: !Ref BucketName
+
+  SentimentJobCreatorFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: sentiment_getter/
+      Handler: functions/job_creator/job_creator.lambda_handler
+      Runtime: python3.12
+      Timeout: 360
+      MemorySize: 512
+      Layers:
+        - !Ref PythonDependenciesLayer
+      LoggingConfig:
+        LogGroup: !Ref SentimentJobCreatorLogGroup
+      Environment:
+        Variables:
+          S3_BUCKET_NAME: !Ref BucketName
+          OPENAI_API_KEY: !Ref OpenAIApiKey
+      Policies:
+        - S3CrudPolicy:
+            BucketName: !Ref BucketName
+
+  SyncPostToSupabaseFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: sentiment_getter/
+      Handler: functions/job_poller/sync_post_to_supabase.lambda_handler
+      Runtime: python3.12
+      Timeout: 60
+      Layers:
+        - !Ref PythonDependenciesLayer
+      LoggingConfig:
+        LogGroup: !Ref JobPollerLogGroup
+      Environment:
+        Variables:
+          S3_BUCKET_NAME: !Ref BucketName
+          SUPABASE_URL: !Ref SupabaseUrl
+          SUPABASE_KEY: !Ref SupabaseKey
+          OPENAI_API_KEY: !Ref OpenAIApiKey
+      Policies:
+        - S3CrudPolicy:
+            BucketName: !Ref BucketName
+
+  GetJobStatusFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: sentiment_getter/
+      Handler: functions/job_poller/get_job_status.lambda_handler
+      Runtime: python3.12
+      Timeout: 90
+      Layers:
+        - !Ref PythonDependenciesLayer
+      LoggingConfig:
+        LogGroup: !Ref JobPollerLogGroup
+      Environment:
+        Variables:
+          S3_BUCKET_NAME: !Ref BucketName
+          OPENAI_API_KEY: !Ref OpenAIApiKey
+
+  # Step Functions
+  KeywordPipeline:
+    Type: AWS::Serverless::StateMachine
+    Properties:
+      Type: STANDARD
+      Logging:
+        Level: ALL
+        IncludeExecutionData: true
+        Destinations:
+          - CloudWatchLogsLogGroup:
+              LogGroupArn: !GetAtt KeywordPipelineLogGroup.Arn
+      Policies:
+        - CloudWatchLogsFullAccess
+        - LambdaInvokePolicy:
+            FunctionName: !Ref RedditScraperFunction
+        - LambdaInvokePolicy:
+            FunctionName: !Ref SteamScraperFunction
+        - LambdaInvokePolicy:
+            FunctionName: !Ref SentimentJobCreatorFunction
+        - S3CrudPolicy:
+            BucketName: !Ref BucketName
+        - SNSPublishMessagePolicy:
+            TopicName: !Ref ErrorTopic
+        - AWSStepFunctionsFullAccess
+      Definition:
+        StartAt: GetConfiguration
+        States:
+          GetConfiguration:
+            Type: Task
+            QueryLanguage: JSONata
+            Resource: "arn:aws:states:::aws-sdk:s3:getObject"
+            Arguments:
+              Bucket: !Ref BucketName
+              Key: "config/keywords_config.json"
+            Output: "{% $parse($states.result.Body) %}"
+            Assign:
+              execution_id: "{% $split($states.context.Execution.Id, ':')[-1] %}"
+            Next: SelectScrapers
+          SelectScrapers:
+            Type: Parallel
+            Branches:
+              - StartAt: ProcessRedditTasks
+                States:
+                  ProcessRedditTasks:
+                    Type: Map
+                    InputPath: $.source.reddit
+                    MaxConcurrency: 45
+                    ToleratedFailurePercentage: 40
+                    Iterator:
+                      ProcessorConfig:
+                        Mode: DISTRIBUTED
+                        ExecutionType: EXPRESS
+                      StartAt: RedditScraper
+                      States:
+                        RedditScraper:
+                          Type: Task
+                          Resource: "arn:aws:states:::lambda:invoke"
+                          Parameters:
+                            FunctionName: !Ref RedditScraperFunction
+                            Payload.$: "$"
+                          OutputPath: "$.Payload"
+                          Next: StoreRedditPosts
+                        StoreRedditPosts:
+                          Type: Map
+                          ItemsPath: $.posts
+                          ItemSelector:
+                            Key.$: States.Format('posts/{}/{}.json', $$.Map.Item.Value.execution_id, $$.Map.Item.Value.id)
+                            Body.$: $$.Map.Item.Value
+                          ResultSelector:
+                            success.$: $[*].Body.id
+                          Iterator:
+                            StartAt: StoreRedditPostToS3
+                            States:
+                              StoreRedditPostToS3:
+                                Type: Task
+                                Resource: "arn:aws:states:::aws-sdk:s3:putObject"
+                                Parameters:
+                                  Bucket: !Ref BucketName
+                                  Key.$: $.Key
+                                  Body.$: $.Body
+                                  ContentType: application/json
+                                ResultPath: null
+                                End: true
+                          End: true
+                    End: true
+                    Retry:
+                      - ErrorEquals:
+                          - States.TaskFailed
+                          - States.Timeout
+                        BackoffRate: 2
+                        IntervalSeconds: 20
+                        MaxAttempts: 3
+                        JitterStrategy: FULL
+                    Catch:
+                      - ErrorEquals:
+                          - States.TaskFailed
+                          - States.Timeout
+                        Next: SNSPublishRedditError
+                        ResultPath: $.error
+                  SNSPublishRedditError:
+                    Type: Task
+                    Resource: "arn:aws:states:::sns:publish"
+                    Parameters:
+                      TopicArn: !Ref ErrorTopic
+                      "Message.$": "$"
+                    End: true
+              - StartAt: ProcessSteamTasks
+                States:
+                  ProcessSteamTasks:
+                    Type: Map
+                    InputPath: $.source.steam
+                    ToleratedFailurePercentage: 30
+                    MaxConcurrency: 90
+                    Iterator:
+                      ProcessorConfig:
+                        Mode: DISTRIBUTED
+                        ExecutionType: EXPRESS
+                      StartAt: SteamScraper
+                      States:
+                        SteamScraper:
+                          Type: Task
+                          Resource: "arn:aws:states:::lambda:invoke"
+                          Parameters:
+                            FunctionName: !Ref SteamScraperFunction
+                            Payload.$: "$"
+                          OutputPath: "$.Payload"
+                          Next: StoreSteamPosts
+                        StoreSteamPosts:
+                          Type: Map
+                          ItemsPath: "$.posts"
+                          ItemSelector:
+                            Key.$: States.Format('posts/{}/{}.json', $$.Map.Item.Value.execution_id, $$.Map.Item.Value.id)
+                            Body.$: $$.Map.Item.Value
+                          ResultSelector:
+                            success.$: $[*].Body.id
+                          Iterator:
+                            StartAt: StoreSteamPostToS3
+                            States:
+                              StoreSteamPostToS3:
+                                Type: Task
+                                Resource: "arn:aws:states:::aws-sdk:s3:putObject"
+                                Parameters:
+                                  Bucket: !Ref BucketName
+                                  Key.$: $.Key
+                                  Body.$: $.Body
+                                  ContentType: application/json
+                                ResultPath: null
+                                End: true
+                          End: true
+                    End: true
+                    Retry:
+                      - ErrorEquals:
+                          - States.TaskFailed
+                          - States.Timeout
+                        BackoffRate: 2
+                        IntervalSeconds: 20
+                        MaxAttempts: 3
+                        JitterStrategy: FULL
+                    Catch:
+                      - ErrorEquals:
+                          - States.TaskFailed
+                          - States.Timeout
+                        Next: SNSPublishSteamError
+                        ResultPath: $.error
+                  SNSPublishSteamError:
+                    Type: Task
+                    Resource: "arn:aws:states:::sns:publish"
+                    Parameters:
+                      TopicArn: !Ref ErrorTopic
+                      "Message.$": "$"
+                    End: true
+            QueryLanguage: JSONata
+            Output: "{% { 'post_ids': $states.result.[*][*].'success', 'execution_id': $execution_id } %}"
+            Arguments:
+              source:
+                reddit: "{% [$map($states.input.source.reddit, function($v) { $merge([$v, { 'ephermeral_execution_id': $execution_id }]) })] %}"
+                steam: "{% [$map($states.input.source.steam, function($v) { $merge([$v, { 'ephermeral_execution_id': $execution_id }]) })] %}"
+            Next: CreateSentimentJob
+          CreateSentimentJob:
+            Type: Task
+            OutputPath: $.Payload
+            Resource: "arn:aws:states:::lambda:invoke"
+            Parameters:
+              FunctionName: !Ref SentimentJobCreatorFunction
+              Payload.$: $
+            Next: StartJobProcessor
+          StartJobProcessor:
+            Type: Task
+            Resource: "arn:aws:states:::states:startExecution"
+            Parameters:
+              StateMachineArn: !Ref JobProcessorPipeline
+              Input.$: "$"
+            End: true
+      Events:
+        HourlyTrigger:
+          Type: Schedule
+          Properties:
+            Schedule: rate(1 hour)
+            Input: "{}"
+
+  JobProcessorPipeline:
+    Type: AWS::Serverless::StateMachine
+    Properties:
+      Type: STANDARD
+      Logging:
+        Level: ALL
+        IncludeExecutionData: true
+        Destinations:
+          - CloudWatchLogsLogGroup:
+              LogGroupArn: !GetAtt JobProcessorLogGroup.Arn
+      Policies:
+        - CloudWatchLogsFullAccess
+        - LambdaInvokePolicy:
+            FunctionName: !Ref GetJobStatusFunction
+        - LambdaInvokePolicy:
+            FunctionName: !Ref SyncPostToSupabaseFunction
+        - S3CrudPolicy:
+            BucketName: !Ref BucketName
+        - SNSPublishMessagePolicy:
+            TopicName: !Ref ErrorTopic
+        - AWSStepFunctionsFullAccess
+      Definition:
+        StartAt: GetJobStatus
+        States:
+          GetJobStatus:
+            Type: Task
+            Resource: "arn:aws:states:::lambda:invoke"
+            Parameters:
+              FunctionName: !Ref GetJobStatusFunction
+              Payload.$: "$"
+            OutputPath: "$.Payload"
+            Next: JobComplete
+          JobComplete:
+            Type: Choice
+            Choices:
+              - Variable: "$.status"
+                StringEquals: "COMPLETED"
+                Next: MapPosts
+              - Variable: "$.status"
+                StringEquals: "FAILED"
+                Next: SNSPublishError
+            Default: Wait75Seconds
+          Wait75Seconds:
+            Type: Wait
+            Seconds: 75
+            Next: GetJobStatus
+          MapPosts:
+            Type: Map
+            QueryLanguage: JSONata
+            Comment: Map posts that are stored in S3
+            Output: "{% $states.result.[*][*] %}"
+            Items: "{% $map($states.input.post_ids, function($v) { 'posts/' & $states.input.execution_id & '/' & $v & '.json' }) %}"
+            ItemProcessor:
+              ProcessorConfig:
+                Mode: DISTRIBUTED
+                ExecutionType: EXPRESS
+              StartAt: SyncPostToSupabase
+              States:
+                SyncPostToSupabase:
+                  Type: Task
+                  Resource: "arn:aws:states:::lambda:invoke"
+                  Parameters:
+                    FunctionName: !Ref SyncPostToSupabaseFunction
+                    Payload.$: "$"
+                  OutputPath: "$.Payload"
+                  End: true
+            Label: Map
+            MaxConcurrency: 250
+            ItemBatcher:
+              MaxItemsPerBatch: 5
+              BatchInput:
+                Job: "{% $states.input %}"
+            Retry:
+              - ErrorEquals:
+                  - States.TaskFailed
+                  - States.Timeout
+                BackoffRate: 2
+                IntervalSeconds: 20
+                MaxAttempts: 3
+                JitterStrategy: FULL
+            Catch:
+              - ErrorEquals:
+                  - States.ALL
+                Next: SNSPublishError
+            End: true
+          SNSPublishError:
+            Type: Task
+            Resource: "arn:aws:states:::sns:publish"
+            Parameters:
+              TopicArn: !Ref ErrorTopic
+              Message.$: "$"
+            Next: FailJob
+          FailJob:
+            Type: Fail
+            Error: "Poll job failed, check logs for more details"
 
 Outputs:
+  RedditScraperFunctionName:
+    Description: Reddit scraper function name
+    Value: !Ref RedditScraperFunction
+  SteamScraperFunctionName:
+    Description: Steam scraper function name
+    Value: !Ref SteamScraperFunction
+  SentimentJobCreatorFunctionName:
+    Description: Sentiment job creator function name
+    Value: !Ref SentimentJobCreatorFunction
+  GetJobStatusFunctionName:
+    Description: Job status checker function name
+    Value: !Ref GetJobStatusFunction
+  SyncPostToSupabaseFunctionName:
+    Description: Sync post to Supabase function name
+    Value: !Ref SyncPostToSupabaseFunction
+  ErrorTopicName:
+    Description: SNS topic name for errors
+    Value: !GetAtt ErrorTopic.TopicName
+  ErrorTopicArn:
+    Description: SNS topic ARN for errors
+    Value: !GetAtt ErrorTopic.TopicArn
   KeywordPipelineArn:
-    Description: Keyword Pipeline State Machine ARN
-    Value: !GetAtt StepFunctionsStack.Outputs.KeywordPipelineArn
+    Description: Step Functions ARN for the keyword pipeline
+    Value: !Ref KeywordPipeline
   JobProcessorPipelineArn:
-    Description: Job Processor Pipeline State Machine ARN
-    Value: !GetAtt StepFunctionsStack.Outputs.JobProcessorPipelineArn
+    Description: Step Functions ARN for the job processor pipeline
+    Value: !Ref JobProcessorPipeline
