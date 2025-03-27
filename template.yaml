@@ -46,87 +46,34 @@ Resources:
         Name: sentimental
         Description: Database for sentiment analysis data
 
-  PostTable:
-    Type: AWS::Glue::Table
-    Properties:
-      CatalogId: !Ref AWS::AccountId
-      DatabaseName: !Ref SentimentalDatabase
-      TableInput:
-        Name: post
-        TableType: EXTERNAL_TABLE
-        Parameters:
-          table_type: ICEBERG
-          iceberg.field.id.current: "true"
-          iceberg.field.id.id: "1"
-          iceberg.field.id.optional: "false"
-          iceberg.field.execution_id.current: "true"
-          iceberg.field.execution_id.id: "2"
-          iceberg.field.execution_id.optional: "true"
-          iceberg.field.keyword.current: "true"
-          iceberg.field.keyword.id: "3"
-          iceberg.field.keyword.optional: "false"
-          iceberg.field.source.current: "true"
-          iceberg.field.source.id: "4"
-          iceberg.field.source.optional: "true"
-          iceberg.field.title.current: "true"
-          iceberg.field.title.id: "5"
-          iceberg.field.title.optional: "true"
-          iceberg.field.created_at.current: "true"
-          iceberg.field.created_at.id: "6"
-          iceberg.field.created_at.optional: "false"
-          iceberg.field.body.current: "true"
-          iceberg.field.body.id: "7"
-          iceberg.field.body.optional: "true"
-          iceberg.field.comments.current: "true"
-          iceberg.field.comments.id: "8"
-          iceberg.field.comments.optional: "true"
-          iceberg.field.post_url.current: "true"
-          iceberg.field.post_url.id: "9"
-          iceberg.field.post_url.optional: "true"
-        StorageDescriptor:
-          Columns:
-            - Name: id
-              Type: string
-            - Name: execution_id
-              Type: string
-            - Name: keyword
-              Type: string
-            - Name: source
-              Type: string
-            - Name: title
-              Type: string
-            - Name: created_at
-              Type: timestamp
-            - Name: body
-              Type: string
-            - Name: comments
-              Type: array<string>
-            - Name: post_url
-              Type: string
-          Location: !Sub s3://${BucketName}/iceberg
-          Compressed: false
-          NumberOfBuckets: 0
-          SortColumns: []
-          StoredAsSubDirectories: false
-
   # Kinesis Firehose Resources
   PostDeliveryStream:
     Type: AWS::KinesisFirehose::DeliveryStream
     Properties:
-      DeliveryStreamName: !Sub ${AWS::StackName}-post-stream
       DeliveryStreamType: DirectPut
-      ExtendedS3DestinationConfiguration:
-        BucketARN: !GetAtt SentimentBucket.Arn
+      # SAM schema is not up-to-date so it might throw warnings, IcebergDestinationConfiguration is actually valid
+      # https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-kinesisfirehose-deliverystream.html#cfn-kinesisfirehose-deliverystream-icebergdestinationconfiguration
+      IcebergDestinationConfiguration:
         RoleARN: !GetAtt FirehoseServiceRole.Arn
-        Prefix: iceberg/
-        ErrorOutputPrefix: errors/
-        BufferingHints:
-          IntervalInSeconds: 180
-          SizeInMBs: 8
+        CatalogConfiguration:
+          CatalogArn: !Sub arn:aws:glue:${AWS::Region}:${AWS::AccountId}:catalog
+        DestinationTableConfigurationList:
+          - DestinationDatabaseName: sentimental
+            DestinationTableName: post
+            UniqueKeys: ["id"]
+            S3ErrorOutputPrefix: errors/unique_key_failure/
         CloudWatchLoggingOptions:
           Enabled: true
           LogGroupName: !Ref FirehoseLogGroup
           LogStreamName: !Sub ${AWS::StackName}-post-stream
+        S3Configuration:
+          BucketARN: !GetAtt SentimentBucket.Arn
+          RoleARN: !GetAtt FirehoseServiceRole.Arn
+          Prefix: iceberg/
+          ErrorOutputPrefix: errors/
+        BufferingHints:
+          IntervalInSeconds: 180
+          SizeInMBs: 8
 
   # IAM Roles
   FirehoseServiceRole:
@@ -167,7 +114,17 @@ Resources:
                   - glue:GetTableVersions
                   - glue:CreateTable
                   - glue:UpdateTable
-                Resource: !Sub arn:aws:glue:${AWS::Region}:${AWS::AccountId}:table/${SentimentalDatabase}/*
+                  - glue:GetDatabase
+                  - glue:GetDatabases
+                  - glue:GetTableVersions
+                  - glue:GetPartition
+                  - glue:GetPartitions
+                  - glue:BatchCreatePartition
+                  - glue:BatchDeletePartition
+                Resource: 
+                  - !Sub arn:aws:glue:${AWS::Region}:${AWS::AccountId}:catalog
+                  - !Sub arn:aws:glue:${AWS::Region}:${AWS::AccountId}:database/${SentimentalDatabase}
+                  - !Sub arn:aws:glue:${AWS::Region}:${AWS::AccountId}:table/${SentimentalDatabase}/*
 
   # Log Groups
   FirehoseLogGroup:
@@ -391,14 +348,24 @@ Resources:
                             FunctionName: !Ref RedditScraperFunction
                             Payload.$: "$"
                           OutputPath: "$.Payload"
-                          Next: PutRedditPostsToFirehose
+                          Next: CheckEmptyRedditPosts
+                        CheckEmptyRedditPosts:
+                          Type: Choice
+                          QueryLanguage: JSONata
+                          Choices:
+                            - Condition: "{% $count($states.input.posts) = 0 %}"
+                              Next: PassRedditPosts
+                          Default: PutRedditPostsToFirehose
                         PutRedditPostsToFirehose:
                           Type: Task
                           QueryLanguage: JSONata
                           Resource: "arn:aws:states:::aws-sdk:firehose:putRecordBatch"
                           Arguments:
                             DeliveryStreamName: !Ref PostDeliveryStream
-                            Records: "{% $map($states.input.posts, function($v) { {'Data': $string($v) } }) %}"
+                            Records: "{% $map($states.input.posts, function($v) { {'Data': $string($v)  } }) %}"
+                          End: true
+                        PassRedditPosts:
+                          Type: Pass
                           End: true
                     End: true
                     Retry:
@@ -442,7 +409,14 @@ Resources:
                             FunctionName: !Ref SteamScraperFunction
                             Payload.$: "$"
                           OutputPath: "$.Payload"
-                          Next: PutSteamPostsToFirehose
+                          Next: CheckEmptySteamPosts
+                        CheckEmptySteamPosts:
+                          Type: Choice
+                          QueryLanguage: JSONata
+                          Choices:
+                            - Condition: "{% $count($states.input.posts) = 0 %}"
+                              Next: PassSteamPosts
+                          Default: PutSteamPostsToFirehose
                         PutSteamPostsToFirehose:
                           Type: Task
                           QueryLanguage: JSONata
@@ -450,6 +424,9 @@ Resources:
                           Arguments:
                             DeliveryStreamName: !Ref PostDeliveryStream
                             Records: "{% $map($states.input.posts, function($v) { {'Data': $string($v) } }) %}"
+                          End: true
+                        PassSteamPosts:
+                          Type: Pass
                           End: true
                     End: true
                     Retry:
