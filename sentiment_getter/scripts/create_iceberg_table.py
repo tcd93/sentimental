@@ -8,6 +8,8 @@ def create_iceberg_table(
 ):
     athena = boto3.client("athena")
 
+    # default timestamp format of Iceberg is TIMESTAMP(6) - microseconds
+    # we need to use TIMESTAMP(0) - seconds
     query = f"""
     CREATE TABLE IF NOT EXISTS {database_name}.{table_name} (
         id STRING,
@@ -15,7 +17,7 @@ def create_iceberg_table(
         keyword STRING,
         source STRING,
         title STRING,
-        created_at TIMESTAMP,
+        created_at TIMESTAMP(0),
         body STRING,
         comments ARRAY<STRING>,
         post_url STRING
