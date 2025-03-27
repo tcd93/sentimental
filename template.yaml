@@ -371,28 +371,6 @@ Resources:
                           Type: Pass
                           End: true
                     End: true
-                    Retry:
-                      - ErrorEquals:
-                          - States.TaskFailed
-                          - States.Timeout
-                        BackoffRate: 2
-                        IntervalSeconds: 20
-                        MaxAttempts: 3
-                        JitterStrategy: FULL
-                    Catch:
-                      - ErrorEquals:
-                          - States.TaskFailed
-                          - States.Timeout
-                        Next: SNSPublishRedditError
-                        Output:
-                          error: "{% $states.errorOutput %}"
-                  SNSPublishRedditError:
-                    Type: Task
-                    Resource: "arn:aws:states:::sns:publish"
-                    Parameters:
-                      TopicArn: !Ref ErrorTopic
-                      "Message.$": "$"
-                    End: true
               - StartAt: ProcessSteamTasks
                 States:
                   ProcessSteamTasks:
@@ -436,28 +414,6 @@ Resources:
                           Type: Pass
                           End: true
                     End: true
-                    Retry:
-                      - ErrorEquals:
-                          - States.TaskFailed
-                          - States.Timeout
-                        BackoffRate: 2
-                        IntervalSeconds: 20
-                        MaxAttempts: 3
-                        JitterStrategy: FULL
-                    Catch:
-                      - ErrorEquals:
-                          - States.TaskFailed
-                          - States.Timeout
-                        Next: SNSPublishSteamError
-                        Output:
-                          error: "{% $states.errorOutput %}"
-                  SNSPublishSteamError:
-                    Type: Task
-                    Resource: "arn:aws:states:::sns:publish"
-                    Parameters:
-                      TopicArn: !Ref ErrorTopic
-                      "Message.$": "$"
-                    End: true
             QueryLanguage: JSONata
             Output:
               ErrorCount: "{% $sum($states.result.ErrorCount) %}"
@@ -466,6 +422,24 @@ Resources:
                 reddit: "{% [$map($states.input.source.reddit, function($v) { $merge([$v, { 'ephermeral_execution_id': $execution_id }]) })] %}"
                 steam: "{% [$map($states.input.source.steam, function($v) { $merge([$v, { 'ephermeral_execution_id': $execution_id }]) })] %}"
             Next: CreateSentimentJob
+            Catch:
+              - ErrorEquals:
+                  - States.TaskFailed
+                  - States.Timeout
+                Next: SNSPublishError
+                Output:
+                  error: "{% $states.errorOutput %}"
+          SNSPublishError:
+            Type: Task
+            QueryLanguage: JSONata
+            Resource: "arn:aws:states:::sns:publish"
+            Arguments:
+              TopicArn: !Ref ErrorTopic
+              Message: "{% 'Error at execution ' & $execution_id & ': ' & $states.input.error %}"
+            Next: FailJob
+          FailJob:
+            Type: Fail
+            Error: "Error at execution {% $execution_id %}: {% $states.input.error %}"
           CreateSentimentJob:
             Type: Task
             OutputPath: $.Payload
