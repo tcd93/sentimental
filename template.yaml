@@ -332,10 +332,13 @@ Resources:
                 States:
                   ProcessRedditTasks:
                     Type: Map
-                    InputPath: $.source.reddit
+                    QueryLanguage: JSONata  
+                    Items: "{% $states.input.source.reddit %}"
+                    Output:
+                      ErrorCount: "{% $sum($states.result.FailedPutCount) %}"
                     MaxConcurrency: 45
                     ToleratedFailurePercentage: 40
-                    Iterator:
+                    ItemProcessor:
                       ProcessorConfig:
                         Mode: DISTRIBUTED
                         ExecutionType: EXPRESS
@@ -362,7 +365,7 @@ Resources:
                           Resource: "arn:aws:states:::aws-sdk:firehose:putRecordBatch"
                           Arguments:
                             DeliveryStreamName: !Ref PostDeliveryStream
-                            Records: "{% $map($states.input.posts, function($v) { {'Data': $string($v)  } }) %}"
+                            Records: "{% [$map($states.input.posts, function($v) { {'Data': $string($v)} })] %}"
                           End: true
                         PassRedditPosts:
                           Type: Pass
@@ -381,7 +384,8 @@ Resources:
                           - States.TaskFailed
                           - States.Timeout
                         Next: SNSPublishRedditError
-                        ResultPath: $.error
+                        Output:
+                          error: "{% $states.errorOutput %}"
                   SNSPublishRedditError:
                     Type: Task
                     Resource: "arn:aws:states:::sns:publish"
@@ -393,10 +397,13 @@ Resources:
                 States:
                   ProcessSteamTasks:
                     Type: Map
-                    InputPath: $.source.steam
+                    QueryLanguage: JSONata
+                    Items: "{% $states.input.source.steam %}"
+                    Output:
+                      ErrorCount: "{% $sum($states.result.FailedPutCount) %}"
                     ToleratedFailurePercentage: 30
                     MaxConcurrency: 90
-                    Iterator:
+                    ItemProcessor:
                       ProcessorConfig:
                         Mode: DISTRIBUTED
                         ExecutionType: EXPRESS
@@ -423,7 +430,7 @@ Resources:
                           Resource: "arn:aws:states:::aws-sdk:firehose:putRecordBatch"
                           Arguments:
                             DeliveryStreamName: !Ref PostDeliveryStream
-                            Records: "{% $map($states.input.posts, function($v) { {'Data': $string($v) } }) %}"
+                            Records: "{% [$map($states.input.posts, function($v) { {'Data': $string($v)} })] %}"
                           End: true
                         PassSteamPosts:
                           Type: Pass
@@ -442,7 +449,8 @@ Resources:
                           - States.TaskFailed
                           - States.Timeout
                         Next: SNSPublishSteamError
-                        ResultPath: $.error
+                        Output:
+                          error: "{% $states.errorOutput %}"
                   SNSPublishSteamError:
                     Type: Task
                     Resource: "arn:aws:states:::sns:publish"
@@ -451,7 +459,8 @@ Resources:
                       "Message.$": "$"
                     End: true
             QueryLanguage: JSONata
-            Output: "{% { 'post_ids': $states.result.[*][*].'success', 'execution_id': $execution_id } %}"
+            Output:
+              ErrorCount: "{% $sum($states.result.ErrorCount) %}"
             Arguments:
               source:
                 reddit: "{% [$map($states.input.source.reddit, function($v) { $merge([$v, { 'ephermeral_execution_id': $execution_id }]) })] %}"
