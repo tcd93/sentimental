@@ -11,12 +11,27 @@ def create_iceberg_table(
     query = f"""
     CREATE TABLE IF NOT EXISTS {database_name}.{table_name} (
         id STRING,
-        content STRING,
+        execution_id STRING,
+        keyword STRING,
+        source STRING,
+        title STRING,
         created_at TIMESTAMP,
-        sentiment DOUBLE
+        body STRING,
+        comments ARRAY<STRING>,
+        post_url STRING
     )
+    PARTITIONED BY (keyword, created_at)
     LOCATION '{s3_location}'
-    TBLPROPERTIES ('table_type'='ICEBERG')
+    TBLPROPERTIES (
+        'table_type'='ICEBERG',
+        'format'='parquet',
+        'write_compression'='snappy',
+        'optimize_rewrite_data_file_threshold'='5',
+        'optimize_rewrite_delete_file_threshold'='2',
+        'vacuum_min_snapshots_to_keep'='1',
+        'vacuum_max_snapshot_age_seconds'='432000',
+        'vacuum_max_metadata_files_to_keep'='100'
+    )
     """
 
     print(f"Creating Iceberg table {database_name}.{table_name}...")
