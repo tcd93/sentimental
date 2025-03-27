@@ -45,7 +45,8 @@ class Post:
             "keyword": self.keyword,
             "source": self.source,
             "title": self.title,
-            "created_at": self.created_at.timestamp(),
+            # convert to microsecond for Iceberg
+            "created_at": self.created_at.timestamp() * 1_000_000,
             "body": self.body,
             "comments": self.comments,
             "post_url": self.post_url,
@@ -59,7 +60,8 @@ class Post:
     def from_dict(cls, data: dict) -> "Post":
         """Create Post from dictionary."""
         if isinstance(data["created_at"], float):
-            data["created_at"] = datetime.fromtimestamp(data["created_at"])
+            # convert from microsecond to second for datetime
+            data["created_at"] = datetime.fromtimestamp(data["created_at"] / 1_000_000)
         return cls(**data)
 
     @classmethod
