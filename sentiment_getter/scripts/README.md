@@ -13,7 +13,7 @@ This directory contains scripts to set up Iceberg tables in AWS Athena.
 
 Run the script directly:
 ```bash
-python parse_samconfig.py
+python create_iceberg_table.py
 ```
 
 The script will automatically:
