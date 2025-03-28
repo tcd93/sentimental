@@ -311,6 +311,10 @@ Resources:
                 - firehose:PutRecord
                 - firehose:PutRecordBatch
               Resource: !GetAtt PostDeliveryStream.Arn
+            - Effect: Allow
+              Action:
+                - sns:Publish
+              Resource: !Ref ErrorTopic
       Definition:
         StartAt: GetConfiguration
         States:
@@ -336,6 +340,7 @@ Resources:
                     Items: "{% $states.input.source.reddit %}"
                     Output:
                       ErrorCount: "{% $sum($states.result.FailedPutCount) %}"
+                      PostDates: "{% $states.result.PostDates %}"
                     MaxConcurrency: 45
                     ToleratedFailurePercentage: 40
                     ItemProcessor:
@@ -346,11 +351,12 @@ Resources:
                       States:
                         RedditScraper:
                           Type: Task
+                          QueryLanguage: JSONata
                           Resource: "arn:aws:states:::lambda:invoke"
-                          Parameters:
+                          Arguments:
                             FunctionName: !Ref RedditScraperFunction
-                            Payload.$: "$"
-                          OutputPath: "$.Payload"
+                            Payload: "{% $states.input %}"
+                          Output: "{% $states.result.Payload %}"
                           Next: CheckEmptyRedditPosts
                         CheckEmptyRedditPosts:
                           Type: Choice
@@ -366,6 +372,9 @@ Resources:
                           Arguments:
                             DeliveryStreamName: !Ref PostDeliveryStream
                             Records: "{% [$map($states.input.posts, function($v) { {'Data': $string($v)} })] %}"
+                          Output:
+                            FailedPutCount: "{% $states.result.FailedPutCount %}"
+                            PostDates: "{% [$map($states.input.posts, function($v) { $v.created_at })] %}"
                           End: true
                         PassRedditPosts:
                           Type: Pass
@@ -379,6 +388,7 @@ Resources:
                     Items: "{% $states.input.source.steam %}"
                     Output:
                       ErrorCount: "{% $sum($states.result.FailedPutCount) %}"
+                      PostDates: "{% $states.result.PostDates %}"
                     ToleratedFailurePercentage: 30
                     MaxConcurrency: 90
                     ItemProcessor:
@@ -409,6 +419,9 @@ Resources:
                           Arguments:
                             DeliveryStreamName: !Ref PostDeliveryStream
                             Records: "{% [$map($states.input.posts, function($v) { {'Data': $string($v)} })] %}"
+                          Output:
+                            FailedPutCount: "{% $states.result.FailedPutCount %}"
+                            PostDates: "{% [$map($states.input.posts, function($v) { $v.created_at })] %}"
                           End: true
                         PassSteamPosts:
                           Type: Pass
@@ -417,6 +430,7 @@ Resources:
             QueryLanguage: JSONata
             Output:
               ErrorCount: "{% $sum($states.result.ErrorCount) %}"
+              PostDates: "{% $states.result.PostDates %}"
             Arguments:
               source:
                 reddit: "{% [$map($states.input.source.reddit, function($v) { $merge([$v, { 'ephermeral_execution_id': $execution_id }]) })] %}"
