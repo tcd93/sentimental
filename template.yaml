@@ -340,7 +340,7 @@ Resources:
                     Items: "{% $states.input.source.reddit %}"
                     Output:
                       ErrorCount: "{% $sum($states.result.FailedPutCount) %}"
-                      PostDates: "{% $states.result.PostDates %}"
+                      Posts: "{% $states.result.Posts %}"
                     MaxConcurrency: 45
                     ToleratedFailurePercentage: 40
                     ItemProcessor:
@@ -374,7 +374,15 @@ Resources:
                             Records: "{% [$map($states.input.posts, function($v) { {'Data': $string($v)} })] %}"
                           Output:
                             FailedPutCount: "{% $states.result.FailedPutCount %}"
-                            PostDates: "{% [$map($states.input.posts, function($v) { $v.created_at })] %}"
+                            Posts: |-
+                              {% [
+                                $map($states.input.posts, function($v) {
+                                  {
+                                    'created_at': $v.created_at,
+                                    'id': $v.id
+                                  }
+                                })
+                              ] %}
                           End: true
                         PassRedditPosts:
                           Type: Pass
@@ -388,7 +396,7 @@ Resources:
                     Items: "{% $states.input.source.steam %}"
                     Output:
                       ErrorCount: "{% $sum($states.result.FailedPutCount) %}"
-                      PostDates: "{% $states.result.PostDates %}"
+                      Posts: "{% $states.result.Posts %}"
                     ToleratedFailurePercentage: 30
                     MaxConcurrency: 90
                     ItemProcessor:
@@ -421,7 +429,15 @@ Resources:
                             Records: "{% [$map($states.input.posts, function($v) { {'Data': $string($v)} })] %}"
                           Output:
                             FailedPutCount: "{% $states.result.FailedPutCount %}"
-                            PostDates: "{% [$map($states.input.posts, function($v) { $v.created_at })] %}"
+                            Posts: |-
+                              {% [
+                                $map($states.input.posts, function($v) {
+                                  {
+                                    'created_at': $v.created_at,
+                                    'id': $v.id
+                                  }
+                                })
+                              ] %}
                           End: true
                         PassSteamPosts:
                           Type: Pass
@@ -430,7 +446,7 @@ Resources:
             QueryLanguage: JSONata
             Output:
               ErrorCount: "{% $sum($states.result.ErrorCount) %}"
-              PostDates: "{% $states.result.PostDates %}"
+              Posts: "{% $states.result.Posts %}"
             Arguments:
               source:
                 reddit: "{% [$map($states.input.source.reddit, function($v) { $merge([$v, { 'ephermeral_execution_id': $execution_id }]) })] %}"
