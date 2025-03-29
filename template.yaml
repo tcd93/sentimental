@@ -377,10 +377,7 @@ Resources:
                             Posts: |-
                               {% [
                                 $map($states.input.posts, function($v) {
-                                  {
-                                    'created_at': $v.created_at,
-                                    'id': $v.id
-                                  }
+                                  'created_at': $v.created_at
                                 })
                               ] %}
                           End: true
@@ -432,10 +429,7 @@ Resources:
                             Posts: |-
                               {% [
                                 $map($states.input.posts, function($v) {
-                                  {
-                                    'created_at': $v.created_at,
-                                    'id': $v.id
-                                  }
+                                  'created_at': $v.created_at
                                 })
                               ] %}
                           End: true
@@ -446,11 +440,23 @@ Resources:
             QueryLanguage: JSONata
             Output:
               ErrorCount: "{% $sum($states.result.ErrorCount) %}"
-              Posts: "{% $states.result.Posts %}"
+              MaxCreatedAt: "{% $max(states.result.Posts.created_at) %}"
+              MinCreatedAt: "{% $min(states.result.Posts.created_at) %}"
+              ExecutionID: "{% $ExecutionID %}"
             Arguments:
               source:
-                reddit: "{% [$map($states.input.source.reddit, function($v) { $merge([$v, { 'ephermeral_execution_id': $execution_id }]) })] %}"
-                steam: "{% [$map($states.input.source.steam, function($v) { $merge([$v, { 'ephermeral_execution_id': $execution_id }]) })] %}"
+                reddit: |- 
+                  {% 
+                    [$map($states.input.source.reddit, function($v) { 
+                      $merge([$v, { 'ephermeral_execution_id': $ExecutionID }]) 
+                    })]
+                  %}
+                steam: |-
+                  {% 
+                    [$map($states.input.source.steam, function($v) { 
+                      $merge([$v, { 'ephermeral_execution_id': $ExecutionID }]) 
+                    })]
+                  %}
             Next: CreateSentimentJob
             Catch:
               - ErrorEquals:
@@ -465,11 +471,11 @@ Resources:
             Resource: "arn:aws:states:::sns:publish"
             Arguments:
               TopicArn: !Ref ErrorTopic
-              Message: "{% 'Error at execution ' & $execution_id & ': ' & $states.input.error %}"
+              Message: "{% 'Error at execution ' & $ExecutionID & ': ' & $states.input.error %}"
             Next: FailJob
           FailJob:
             Type: Fail
-            Error: "Error at execution {% $execution_id %}: {% $states.input.error %}"
+            Error: "Error at execution {% $ExecutionID %}: {% $states.input.error %}"
           CreateSentimentJob:
             Type: Task
             OutputPath: $.Payload
