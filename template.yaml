@@ -327,7 +327,7 @@ Resources:
               Key: "config/keywords_config.json"
             Output: "{% $parse($states.result.Body) %}"
             Assign:
-              execution_id: "{% $split($states.context.Execution.Id, ':')[-1] %}"
+              ExecutionID: "{% $split($states.context.Execution.Id, ':')[-1] %}"
             Next: SelectScrapers
           SelectScrapers:
             Type: Parallel
@@ -338,8 +338,10 @@ Resources:
                     Type: Map
                     QueryLanguage: JSONata  
                     Items: "{% $states.input.source.reddit %}"
-                    Output:
-                      ErrorCount: "{% $sum($states.result.FailedPutCount) %}"
+                    Output: 
+                      StreamResult:
+                        FailedPutCount: "{% $sum($states.result.StreamResult.FailedPutCount) %}"
+                        SuccessPutCount: "{% $sum($states.result.StreamResult.SuccessPutCount) %}"
                       Posts: "{% $states.result.Posts %}"
                     MaxConcurrency: 45
                     ToleratedFailurePercentage: 40
@@ -373,11 +375,13 @@ Resources:
                             DeliveryStreamName: !Ref PostDeliveryStream
                             Records: "{% [$map($states.input.posts, function($v) { {'Data': $string($v)} })] %}"
                           Output:
-                            FailedPutCount: "{% $states.result.FailedPutCount %}"
+                            StreamResult:
+                              FailedPutCount: "{% $states.result.FailedPutCount %}"
+                              SuccessPutCount: "{% $count($states.result.RequestResponses.RecordId) %}"
                             Posts: |-
                               {% [
                                 $map($states.input.posts, function($v) {
-                                  'created_at': $v.created_at
+                                  {'created_at': $v.created_at}
                                 })
                               ] %}
                           End: true
@@ -392,7 +396,9 @@ Resources:
                     QueryLanguage: JSONata
                     Items: "{% $states.input.source.steam %}"
                     Output:
-                      ErrorCount: "{% $sum($states.result.FailedPutCount) %}"
+                      StreamResult:
+                        FailedPutCount: "{% $sum($states.result.StreamResult.FailedPutCount) %}"
+                        SuccessPutCount: "{% $sum($states.result.StreamResult.SuccessPutCount) %}"
                       Posts: "{% $states.result.Posts %}"
                     ToleratedFailurePercentage: 30
                     MaxConcurrency: 90
@@ -425,11 +431,13 @@ Resources:
                             DeliveryStreamName: !Ref PostDeliveryStream
                             Records: "{% [$map($states.input.posts, function($v) { {'Data': $string($v)} })] %}"
                           Output:
-                            FailedPutCount: "{% $states.result.FailedPutCount %}"
+                            StreamResult:
+                              FailedPutCount: "{% $states.result.FailedPutCount %}"
+                              SuccessPutCount: "{% $count($states.result.RequestResponses.RecordId) %}"
                             Posts: |-
                               {% [
                                 $map($states.input.posts, function($v) {
-                                  'created_at': $v.created_at
+                                  {'created_at': $v.created_at}
                                 })
                               ] %}
                           End: true
@@ -439,9 +447,10 @@ Resources:
                     End: true
             QueryLanguage: JSONata
             Output:
-              ErrorCount: "{% $sum($states.result.ErrorCount) %}"
-              MaxCreatedAt: "{% $max(states.result.Posts.created_at) %}"
-              MinCreatedAt: "{% $min(states.result.Posts.created_at) %}"
+              SuccessCount: "{% $sum($states.result.StreamResult.SuccessPutCount) %}"
+              ErrorCount: "{% $sum($states.result.StreamResult.FailedPutCount) %}"
+              MaxCreatedAt: "{% $max($states.result.Posts.created_at) %}"
+              MinCreatedAt: "{% $min($states.result.Posts.created_at) %}"
               ExecutionID: "{% $ExecutionID %}"
             Arguments:
               source:

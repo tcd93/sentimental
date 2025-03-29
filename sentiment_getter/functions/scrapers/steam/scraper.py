@@ -36,6 +36,7 @@ def get_steam_reviews(
     keyword,
     execution_id: str,
     time_filter="day",
+    # ignore warning pylint: disable=unused-argument
     sort="top",
     post_limit=10,
     logger: logging.Logger | None = None,
@@ -61,13 +62,8 @@ def get_steam_reviews(
     # Convert time filter to Steam's format
     time_ranges = {"day": 1, "week": 7, "month": 30, "year": 365, "all": 0}
     days = time_ranges.get(time_filter, 1)
-
-    # Convert sort to Steam's format
-    review_sort = {
-        "top": "helpfulness",  # Most helpful reviews
-        "new": "created",  # Most recent
-        "hot": "helpfulness",  # Default to most helpful
-    }.get(sort, "helpfulness")
+    start_date = int(datetime.now().timestamp()) - days * 24 * 60 * 60
+    end_date = int(datetime.now().timestamp())
 
     params = {
         "json": 1,
@@ -77,9 +73,10 @@ def get_steam_reviews(
         "purchase_type": "all",
         "num_per_page": post_limit,
         "day_range": days,
+        "start_date": start_date,
+        "end_date": end_date,
         "review_score": 0,  # All review scores
         "cursor": "*",
-        "sort": review_sort,
     }
 
     response = requests.get(
