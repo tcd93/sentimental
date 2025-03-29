@@ -232,6 +232,8 @@ Resources:
       Timeout: 360
       MemorySize: 512
       Layers:
+        # Pandas must go first
+        - !Sub arn:aws:lambda:${AWS::Region}:336392948345:layer:AWSSDKPandas-Python312:1
         - !Ref PythonDependenciesLayer
       LoggingConfig:
         LogGroup: !Ref SentimentJobCreatorLogGroup
@@ -242,6 +244,46 @@ Resources:
       Policies:
         - S3CrudPolicy:
             BucketName: !Ref BucketName
+        - Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Action:
+                - glue:DeleteTable
+                - glue:GetTable
+                - glue:GetTableVersion
+                - glue:GetTableVersions
+                - glue:CreateTable
+                - glue:UpdateTable
+                - glue:GetDatabase
+                - glue:GetDatabases
+                - glue:GetPartition
+                - glue:GetPartitions
+                - glue:BatchCreatePartition
+                - glue:BatchDeletePartition
+              Resource: 
+                - !Sub arn:aws:glue:${AWS::Region}:${AWS::AccountId}:catalog
+                - !Sub arn:aws:glue:${AWS::Region}:${AWS::AccountId}:database/sentimental
+                - !Sub arn:aws:glue:${AWS::Region}:${AWS::AccountId}:table/sentimental/*
+            - Effect: Allow
+              Action:
+                - athena:StartQueryExecution
+                - athena:GetQueryExecution
+                - athena:GetQueryResults
+                - athena:StopQueryExecution
+                - athena:GetWorkGroup
+              Resource:
+                - !Sub arn:aws:athena:${AWS::Region}:${AWS::AccountId}:workgroup/primary
+            - Effect: Allow
+              Action:
+                - s3:PutObject
+                - s3:GetObject
+                - s3:ListBucket
+                - s3:DeleteObject
+                - s3:ListMultipartUploadParts
+                - s3:AbortMultipartUpload
+              Resource:
+                - !Sub ${SentimentBucket.Arn}/athena-results/*
+                - !Sub ${SentimentBucket.Arn}
 
   SyncPostToSupabaseFunction:
     Type: AWS::Serverless::Function

@@ -9,6 +9,7 @@ import json
 import os
 import boto3
 
+
 @dataclass(frozen=True)
 # pylint: disable=too-many-instance-attributes
 class Post:
@@ -28,12 +29,20 @@ class Post:
         """
         Get the text of the post and comments as a single line for processing
         """
-        trimmed_comments = " - ".join(
-            [comment.replace("\n", ".") for comment in self.comments]
-        )
+        # Handle None values in comments
+        safe_comments = [
+            comment.replace("\n", ".") if comment is not None else ""
+            for comment in self.comments or []
+        ]
+        trimmed_comments = " - ".join(safe_comments)
+
+        # Handle None values in title and body
+        safe_title = self.title.replace("\n", ".") if self.title is not None else ""
+        safe_body = self.body.replace("\n", ".") if self.body is not None else ""
+
         return (
-            f"title: {self.title.replace('\n', '.')}; "
-            f"body: {self.body.replace('\n', '.')}; "
+            f"title: {safe_title}; "
+            f"body: {safe_body}; "
             f"comments: {trimmed_comments}"
         )
 
