@@ -68,15 +68,17 @@ def get_steam_reviews(
     params = {
         "json": 1,
         "language": "english",
-        "filter": "all",  # Include all review types
-        "review_type": "all",  # Both positive and negative reviews
-        "purchase_type": "all",
+        "l": "english",
+        "review_type": "all",
+        "purchase_type": "steam",
         "num_per_page": post_limit,
         "day_range": days,
         "start_date": start_date,
         "end_date": end_date,
-        "review_score": 0,  # All review scores
         "cursor": "*",
+        "use_review_quality": 1,
+        "date_range_type": "include", # required
+        "filter": "summary"
     }
 
     response = requests.get(
