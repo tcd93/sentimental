@@ -13,6 +13,11 @@ from sentiment_service_providers.service_provider_factory import get_service_pro
 import awswrangler as wr
 
 
+class NoPostsFoundError(Exception):
+    """Custom exception raised when no posts are found for a job."""
+    pass
+
+
 def lambda_handler(event, _):
     """
     Create a sentiment analysis job for posts from multiple scrapers.
@@ -45,7 +50,8 @@ def lambda_handler(event, _):
     # get posts from Athena
     posts = get_posts_from_athena(execution_id, max_created_at, min_created_at)
     if len(posts) == 0:
-        return None
+        logger.error("No posts found for execution ID: %s", execution_id)
+        raise NoPostsFoundError(f"No posts found for execution ID: {execution_id}")
 
     provider = get_service_provider(logger=logger)
 

@@ -73,7 +73,7 @@ Resources:
           ErrorOutputPrefix: errors/
         BufferingHints:
           IntervalInSeconds: 180
-          SizeInMBs: 8
+          SizeInMBs: 64
 
   # IAM Roles
   FirehoseServiceRole:
@@ -173,6 +173,12 @@ Resources:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName: !Sub /aws/vendedlogs/states/KeywordAPIPipeline
+      RetentionInDays: 7
+
+  JobCreationPipelineLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/vendedlogs/states/JobCreationPipeline
       RetentionInDays: 7
 
   JobProcessingLogGroup:
@@ -508,7 +514,7 @@ Resources:
                       $merge([$v, { 'ephermeral_execution_id': $ExecutionID }]) 
                     })]
                   %}
-            Next: CreateSentimentJob
+            Next: Wait
             Catch:
               - ErrorEquals:
                   - States.TaskFailed
@@ -527,19 +533,16 @@ Resources:
           FailJob:
             Type: Fail
             Error: "Error at execution {% $ExecutionID %}: {% $states.input.error %}"
-          CreateSentimentJob:
-            Type: Task
-            OutputPath: $.Payload
-            Resource: "arn:aws:states:::lambda:invoke"
-            Parameters:
-              FunctionName: !Ref SentimentJobCreatorFunction
-              Payload.$: $
-            Next: StartJobProcessing
-          StartJobProcessing:
+          Wait:
+            Type: Wait
+            Seconds: 160
+            Next: StartJobCreationPipeline
+            Comment: Wait for 160 seconds to ensure that records are available in the database
+          StartJobCreationPipeline:
             Type: Task
             Resource: "arn:aws:states:::states:startExecution"
             Parameters:
-              StateMachineArn: !Ref JobProcessingPipeline
+              StateMachineArn: !Ref JobCreationPipeline
               Input.$: "$"
             End: true
       Events:
@@ -549,6 +552,69 @@ Resources:
             Schedule: rate(1 hour)
             Input: "{}"
             Enabled: false
+
+  JobCreationPipeline:
+    Type: AWS::Serverless::StateMachine
+    Properties:
+      Type: STANDARD
+      Logging:
+        Level: ALL
+        IncludeExecutionData: true
+        Destinations:
+          - CloudWatchLogsLogGroup:
+              LogGroupArn: !GetAtt JobCreationPipelineLogGroup.Arn
+      Policies:
+        - CloudWatchLogsFullAccess
+        - LambdaInvokePolicy:
+            FunctionName: !Ref SentimentJobCreatorFunction
+        - S3CrudPolicy:
+            BucketName: !Ref BucketName
+        - SNSPublishMessagePolicy:
+            TopicName: !Ref ErrorTopic
+        - AWSStepFunctionsFullAccess
+      Definition:
+        StartAt: CreateSentimentJob
+        States:
+          CreateSentimentJob:
+            Type: Task
+            QueryLanguage: JSONata
+            Resource: "arn:aws:states:::lambda:invoke"
+            Arguments:
+              FunctionName: !Ref SentimentJobCreatorFunction
+              Payload: "{% $states.input %}"
+            Output: "{% $states.result.Payload %}"
+            Next: StartJobProcessing
+            Catch:
+              - ErrorEquals:
+                  - States.TaskFailed
+                  - States.Timeout
+                Next: SNSPublishError
+                Output:
+                  error: "{% $states.errorOutput %}"
+            Retry:
+              - ErrorEquals:
+                  - NoPostsFoundError
+                IntervalSeconds: 30
+                MaxAttempts: 3
+          SNSPublishError:
+            Type: Task
+            QueryLanguage: JSONata
+            Resource: "arn:aws:states:::sns:publish"
+            Arguments:
+              TopicArn: !Ref ErrorTopic
+              Message: "{% 'Error at execution ' & $states.input.ExecutionID & ': ' & $states.input.error %}"
+            Next: FailJob
+          FailJob:
+            Type: Fail
+            Error: "Job creation failed, check logs for more details"
+          StartJobProcessing:
+            Type: Task
+            QueryLanguage: JSONata
+            Resource: "arn:aws:states:::states:startExecution"
+            Arguments:
+              StateMachineArn: !Ref JobProcessingPipeline
+              Input: "{% $states.input %}"
+            End: true
 
   JobProcessingPipeline:
     Type: AWS::Serverless::StateMachine
@@ -671,9 +737,9 @@ Outputs:
   KeywordAPIPipelineArn:
     Description: Step Functions ARN for the keyword pipeline
     Value: !Ref KeywordAPIPipeline
-  JobProcessingPipelineArn:
-    Description: Step Functions ARN for the job processor pipeline
-    Value: !Ref JobProcessingPipeline
+  JobCreationPipelineArn:
+    Description: Step Functions ARN for the job creation pipeline
+    Value: !Ref JobCreationPipeline
   PostDeliveryStreamName:
     Description: Kinesis Firehose delivery stream name
     Value: !Ref PostDeliveryStream

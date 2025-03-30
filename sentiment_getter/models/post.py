@@ -4,10 +4,7 @@ This module contains the Post class, which is used to represent a post on a soci
 
 from dataclasses import dataclass
 from datetime import datetime
-import logging
 import json
-import os
-import boto3
 
 
 @dataclass(frozen=True)
@@ -78,14 +75,3 @@ class Post:
         """Create Post from JSON string."""
         return cls.from_dict(json.loads(json_str))
 
-    # construct Post from s3
-    @classmethod
-    def from_s3(cls, key: str, logger: logging.Logger | None = None) -> "Post":
-        """Construct Post from S3"""
-        s3 = boto3.client("s3")
-        if logger is None:
-            logger = logging.getLogger()
-            logger.setLevel(logging.INFO)
-        logger.debug("Fetching key %s", key)
-        response = s3.get_object(Bucket=os.environ["S3_BUCKET_NAME"], Key=key)
-        return cls.from_json(response["Body"].read().decode("utf-8"))
