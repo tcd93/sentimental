@@ -9,12 +9,12 @@ from botocore.exceptions import ClientError
 class TableOperationError(Exception):
     """Custom exception for table operations."""
 
-    pass
-
 
 def create_iceberg_table(
     database_name: str,
     table_name: str,
+    columns: list[tuple[str, str]],
+    partiioned_by: str,
     s3_location: str,
     results_location: str,
     region: str,
@@ -25,6 +25,8 @@ def create_iceberg_table(
     Args:
         database_name: Name of the Athena database
         table_name: Name of the table to create
+        columns: List of tuples containing column name and type
+        partiioned_by: Partition syntax
         s3_location: S3 location for table data
         results_location: S3 location for query results
         region: AWS region
@@ -69,22 +71,9 @@ def create_iceberg_table(
     # Create the new table with partitioning
     create_query = f"""
     CREATE TABLE IF NOT EXISTS {database_name}.{table_name} (
-        id STRING,
-        execution_id STRING,
-        keyword STRING,
-        source STRING,
-        title STRING,
-        created_at TIMESTAMP(0),
-        body STRING,
-        comments ARRAY<STRING>,
-        post_url STRING,
-        sentiment STRING,
-        sentiment_score_mixed FLOAT,
-        sentiment_score_positive FLOAT,
-        sentiment_score_neutral FLOAT,
-        sentiment_score_negative FLOAT
+        {", ".join([f"{name} {type}" for name, type in columns])}
     )
-    PARTITIONED BY (month(created_at), bucket(16, keyword))
+    PARTITIONED BY ({partiioned_by})
     LOCATION '{s3_location}'
     TBLPROPERTIES (
         'table_type'='ICEBERG',
@@ -147,17 +136,58 @@ def parse_samconfig():
     region = config["default"]["deploy"]["parameters"]["region"]
     profile = config["default"]["deploy"]["parameters"]["profile"]
 
-    # Set variables
     database_name = "sentimental"
     table_name = "post"
     s3_location = f"s3://{bucket_name}/iceberg/"
     results_location = f"s3://{bucket_name}/athena-results/create-table/"
-
-    # Create the Iceberg table
+    columns = [
+        ("id", "STRING"),
+        ("execution_id", "STRING"),
+        ("keyword", "STRING"),
+        ("source", "STRING"),
+        ("created_at", "TIMESTAMP"),
+        ("title", "STRING"),
+        ("body", "STRING"),
+        ("comments", "STRING"),
+        ("post_url", "STRING")
+    ]
+    partitioned_by = "execution_id"
     create_iceberg_table(
-        database_name, table_name, s3_location, results_location, region, profile
+        database_name,
+        table_name,
+        columns,
+        partitioned_by,
+        s3_location,
+        results_location,
+        region,
+        profile,
     )
 
+    # create sentiment result table
+    table_name = "sentiment"
+    columns = [
+        ("keyword", "STRING"),
+        ("created_at", "TIMESTAMP"),
+        ("execution_id", "STRING"),
+        ("post_id", "STRING"),
+        ("post_url", "STRING"),
+        ("sentiment", "STRING"),
+        ("sentiment_score_mixed", "DOUBLE"),
+        ("sentiment_score_positive", "DOUBLE"),
+        ("sentiment_score_neutral", "DOUBLE"),
+        ("sentiment_score_negative", "DOUBLE"),
+    ]
+    partitioned_by = "day(created_at), bucket(16, keyword)"
+    create_iceberg_table(
+        database_name,
+        table_name,
+        columns,
+        partitioned_by,
+        s3_location,
+        results_location,
+        region,
+        profile,
+    )
 
 if __name__ == "__main__":
     parse_samconfig()

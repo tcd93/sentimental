@@ -48,7 +48,7 @@ class ChatGPTProvider(SentimentServiceProvider):
                                 "content": (
                                     "You are a sentiment analysis tool. "
                                     "Analyze the sentiment of the following text "
-                                    "and respond with ONLY a JSON object with the format: "
+                                    "and respond a single JSON object with the format: "
                                     '{"sentiment": "POSITIVE|NEGATIVE|NEUTRAL|MIXED", '
                                     '"scores": {'
                                     '"Positive": float, '
@@ -57,6 +57,7 @@ class ChatGPTProvider(SentimentServiceProvider):
                                     '"Mixed": float'
                                     "}}"
                                     " The scores should sum to 1.0."
+                                    " Do not include any other text in your response."
                                 ),
                             },
                             {"role": "user", "content": post.get_text()},

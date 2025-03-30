@@ -38,12 +38,8 @@ def lambda_handler(event, _):
     )
 
     execution_id = event["ExecutionID"]
-    # Data is stored in Iceberg tables with microsecond precision
-    # But when querying through Athena, the from_unixtime function expects seconds
-    max_created_at = int(event["MaxCreatedAt"]) / 1_000_000
-    min_created_at = int(event["MinCreatedAt"]) / 1_000_000
 
-    posts = get_posts(execution_id, max_created_at, min_created_at)
+    posts = get_posts(execution_id)
     if len(posts) == 0:
         logger.error("No posts found for execution ID: %s", execution_id)
         raise NoPostsFoundError(f"No posts found for execution ID: {execution_id}")

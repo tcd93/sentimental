@@ -16,3 +16,19 @@ class Sentiment:
     positive: float
     negative: float
     neutral: float
+
+    def to_dict(self) -> dict:
+        """Convert the sentiment to a table row."""
+        return {
+            "keyword": self.post.keyword,
+            "created_at": self.post.created_at,
+            "execution_id": self.post.execution_id,
+            "post_id": self.post.id,
+            "post_url": self.post.post_url,
+            "sentiment": self.sentiment,
+            "sentiment_score_mixed": self.mixed,
+            "sentiment_score_positive": self.positive,
+            "sentiment_score_neutral": self.neutral,
+            "sentiment_score_negative": self.negative,
+        }
+

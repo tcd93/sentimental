@@ -26,19 +26,19 @@ def lambda_handler(event, _):
     logger.setLevel(logging.INFO)
 
     execution_id = event["ExecutionID"]
-    max_created_at = int(event["MaxCreatedAt"]) / 1_000_000
-    min_created_at = int(event["MinCreatedAt"]) / 1_000_000
+    # Data is stored in Iceberg tables with microsecond precision
+    # But when querying through Athena, the from_unixtime function expects seconds
+    max_created_at = int(event["MaxCreatedAt"] / 1_000_000)
+    min_created_at = int(event["MinCreatedAt"] / 1_000_000)
 
     job = Job.from_dict(event["Job"])
     assert job.status == "COMPLETED", "Job is not completed"
 
     provider = get_service_provider(logger=logger, provider_name=job.provider)
 
-    posts: list[Post] = get_posts(
-        execution_id, max_created_at, min_created_at
-    )
+    posts: list[Post] = get_posts(execution_id)
     logger.info("Retrieved %d posts for job %s", len(posts), job.job_id)
     sentiments = provider.process_completed_job(job, posts)
     logger.info("Completed calculation of sentiments for job %s", job.job_id)
-    save_sentiments(sentiments, min_created_at, max_created_at)
+    save_sentiments(job.job_id, sentiments, min_created_at, max_created_at)
     logger.info("Saved sentiments for job %s", job.job_id)
