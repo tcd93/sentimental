@@ -21,14 +21,13 @@ class SentimentServiceProvider(ABC):
             self.logger = logger
 
     @abstractmethod
-    def create_sentiment_job(self, posts: list[Post], job_name: str, execution_id: str) -> Job:
+    def create_sentiment_job(self, posts: list[Post], job_name: str) -> Job:
         """
         Create a sentiment analysis job for a batch of posts.
 
         Args:
             posts: List of Post objects to analyze
             job_name: Name for the job
-            execution_id: Step Functions execution ID for the job
         """
 
     @abstractmethod

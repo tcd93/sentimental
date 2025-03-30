@@ -61,7 +61,7 @@ Resources:
           - DestinationDatabaseName: sentimental
             DestinationTableName: post
             UniqueKeys: ["id"]
-            S3ErrorOutputPrefix: errors/unique_key_failure/
+            S3ErrorOutputPrefix: unique_key_failure/
         CloudWatchLoggingOptions:
           Enabled: true
           LogGroupName: !Ref FirehoseLogGroup
@@ -187,6 +187,53 @@ Resources:
       LogGroupName: !Sub /aws/vendedlogs/states/JobProcessingPipeline
       RetentionInDays: 7
 
+  # IAM Policies
+  AthenaAndGluePolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      Description: Policy for Athena and Glue access
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Action:
+              - glue:DeleteTable
+              - glue:GetTable
+              - glue:GetTableVersion
+              - glue:GetTableVersions
+              - glue:CreateTable
+              - glue:UpdateTable
+              - glue:GetDatabase
+              - glue:GetDatabases
+              - glue:GetPartition
+              - glue:GetPartitions
+              - glue:BatchCreatePartition
+              - glue:BatchDeletePartition
+            Resource: 
+              - !Sub arn:aws:glue:${AWS::Region}:${AWS::AccountId}:catalog
+              - !Sub arn:aws:glue:${AWS::Region}:${AWS::AccountId}:database/sentimental
+              - !Sub arn:aws:glue:${AWS::Region}:${AWS::AccountId}:table/sentimental/*
+          - Effect: Allow
+            Action:
+              - athena:StartQueryExecution
+              - athena:GetQueryExecution
+              - athena:GetQueryResults
+              - athena:StopQueryExecution
+              - athena:GetWorkGroup
+            Resource:
+              - !Sub arn:aws:athena:${AWS::Region}:${AWS::AccountId}:workgroup/primary
+          - Effect: Allow
+            Action:
+              - s3:PutObject
+              - s3:GetObject
+              - s3:ListBucket
+              - s3:DeleteObject
+              - s3:ListMultipartUploadParts
+              - s3:AbortMultipartUpload
+            Resource:
+              - !Sub ${SentimentBucket.Arn}/athena-results/*
+              - !Sub ${SentimentBucket.Arn}
+
   # Lambda Functions
   RedditScraperFunction:
     Type: AWS::Serverless::Function
@@ -250,67 +297,28 @@ Resources:
       Policies:
         - S3CrudPolicy:
             BucketName: !Ref BucketName
-        - Version: '2012-10-17'
-          Statement:
-            - Effect: Allow
-              Action:
-                - glue:DeleteTable
-                - glue:GetTable
-                - glue:GetTableVersion
-                - glue:GetTableVersions
-                - glue:CreateTable
-                - glue:UpdateTable
-                - glue:GetDatabase
-                - glue:GetDatabases
-                - glue:GetPartition
-                - glue:GetPartitions
-                - glue:BatchCreatePartition
-                - glue:BatchDeletePartition
-              Resource: 
-                - !Sub arn:aws:glue:${AWS::Region}:${AWS::AccountId}:catalog
-                - !Sub arn:aws:glue:${AWS::Region}:${AWS::AccountId}:database/sentimental
-                - !Sub arn:aws:glue:${AWS::Region}:${AWS::AccountId}:table/sentimental/*
-            - Effect: Allow
-              Action:
-                - athena:StartQueryExecution
-                - athena:GetQueryExecution
-                - athena:GetQueryResults
-                - athena:StopQueryExecution
-                - athena:GetWorkGroup
-              Resource:
-                - !Sub arn:aws:athena:${AWS::Region}:${AWS::AccountId}:workgroup/primary
-            - Effect: Allow
-              Action:
-                - s3:PutObject
-                - s3:GetObject
-                - s3:ListBucket
-                - s3:DeleteObject
-                - s3:ListMultipartUploadParts
-                - s3:AbortMultipartUpload
-              Resource:
-                - !Sub ${SentimentBucket.Arn}/athena-results/*
-                - !Sub ${SentimentBucket.Arn}
+        - !Ref AthenaAndGluePolicy
 
-  SyncPostToSupabaseFunction:
+  UpdateSentimentsFunction:
     Type: AWS::Serverless::Function
     Properties:
       CodeUri: sentiment_getter/
-      Handler: functions/job_poller/sync_post_to_supabase.lambda_handler
+      Handler: functions/job_poller/update_sentiments.lambda_handler
       Runtime: python3.12
       Timeout: 60
       Layers:
+        - !Sub arn:aws:lambda:${AWS::Region}:336392948345:layer:AWSSDKPandas-Python312:1
         - !Ref PythonDependenciesLayer
       LoggingConfig:
         LogGroup: !Ref JobPollerLogGroup
       Environment:
         Variables:
           S3_BUCKET_NAME: !Ref BucketName
-          SUPABASE_URL: !Ref SupabaseUrl
-          SUPABASE_KEY: !Ref SupabaseKey
           OPENAI_API_KEY: !Ref OpenAIApiKey
       Policies:
         - S3CrudPolicy:
             BucketName: !Ref BucketName
+        - !Ref AthenaAndGluePolicy
 
   GetJobStatusFunction:
     Type: AWS::Serverless::Function
@@ -528,7 +536,7 @@ Resources:
             Resource: "arn:aws:states:::sns:publish"
             Arguments:
               TopicArn: !Ref ErrorTopic
-              Message: "{% 'Error at execution ' & $ExecutionID & ': ' & $states.input.error %}"
+              Message: "{% 'Error at Job Creation Pipeline: ' & $states.input.error %}"
             Next: FailJob
           FailJob:
             Type: Fail
@@ -572,6 +580,12 @@ Resources:
         - SNSPublishMessagePolicy:
             TopicName: !Ref ErrorTopic
         - AWSStepFunctionsFullAccess
+        - Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Action:
+                - sns:Publish
+              Resource: !Ref ErrorTopic
       Definition:
         StartAt: CreateSentimentJob
         States:
@@ -602,7 +616,7 @@ Resources:
             Resource: "arn:aws:states:::sns:publish"
             Arguments:
               TopicArn: !Ref ErrorTopic
-              Message: "{% 'Error at execution ' & $states.input.ExecutionID & ': ' & $states.input.error %}"
+              Message: "{% 'Error at execution ' & $ExecutionID & ': ' & $states.input.error %}"
             Next: FailJob
           FailJob:
             Type: Fail
@@ -631,30 +645,41 @@ Resources:
         - LambdaInvokePolicy:
             FunctionName: !Ref GetJobStatusFunction
         - LambdaInvokePolicy:
-            FunctionName: !Ref SyncPostToSupabaseFunction
+            FunctionName: !Ref UpdateSentimentsFunction
         - S3CrudPolicy:
             BucketName: !Ref BucketName
         - SNSPublishMessagePolicy:
             TopicName: !Ref ErrorTopic
         - AWSStepFunctionsFullAccess
+        - Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Action:
+                - sns:Publish
+              Resource: !Ref ErrorTopic
       Definition:
         StartAt: GetJobStatus
         States:
           GetJobStatus:
             Type: Task
             Resource: "arn:aws:states:::lambda:invoke"
-            Parameters:
+            QueryLanguage: JSONata
+            Assign:
+              ExecutionID: "{% $states.input.ExecutionID %}"
+              MaxCreatedAt: "{% $states.input.MaxCreatedAt %}"
+              MinCreatedAt: "{% $states.input.MinCreatedAt %}"
+            Arguments:
               FunctionName: !Ref GetJobStatusFunction
-              Payload.$: "$"
-            OutputPath: "$.Payload"
+              Payload: "{% $states.input %}"
+            Output: "{% $states.result.Payload %}"
             Next: JobComplete
           JobComplete:
             Type: Choice
             Choices:
-              - Variable: "$.status"
+              - Variable: "$.Job.status"
                 StringEquals: "COMPLETED"
-                Next: MapPosts
-              - Variable: "$.status"
+                Next: UpdateSentiments
+              - Variable: "$.Job.status"
                 StringEquals: "FAILED"
                 Next: SNSPublishError
             Default: Wait75Seconds
@@ -662,44 +687,21 @@ Resources:
             Type: Wait
             Seconds: 75
             Next: GetJobStatus
-          MapPosts:
-            Type: Map
+          UpdateSentiments:
+            Type: Task
+            Resource: "arn:aws:states:::lambda:invoke"
             QueryLanguage: JSONata
-            Comment: Map posts that are stored in S3
-            Output: "{% $states.result.[*][*] %}"
-            Items: "{% $map($states.input.post_ids, function($v) { 'posts/' & $states.input.execution_id & '/' & $v & '.json' }) %}"
-            ItemProcessor:
-              ProcessorConfig:
-                Mode: DISTRIBUTED
-                ExecutionType: EXPRESS
-              StartAt: SyncPostToSupabase
-              States:
-                SyncPostToSupabase:
-                  Type: Task
-                  Resource: "arn:aws:states:::lambda:invoke"
-                  Parameters:
-                    FunctionName: !Ref SyncPostToSupabaseFunction
-                    Payload.$: "$"
-                  OutputPath: "$.Payload"
-                  End: true
-            Label: Map
-            MaxConcurrency: 250
-            ItemBatcher:
-              MaxItemsPerBatch: 5
-              BatchInput:
-                Job: "{% $states.input %}"
-            Retry:
+            Arguments:
+              FunctionName: !Ref UpdateSentimentsFunction
+              Payload: "{% $states.input %}"
+            Output: "{% $states.result.Payload %}"
+            Catch:
               - ErrorEquals:
                   - States.TaskFailed
                   - States.Timeout
-                BackoffRate: 2
-                IntervalSeconds: 20
-                MaxAttempts: 3
-                JitterStrategy: FULL
-            Catch:
-              - ErrorEquals:
-                  - States.ALL
                 Next: SNSPublishError
+                Output:
+                  error: "{% $states.errorOutput %}"
             End: true
           SNSPublishError:
             Type: Task
@@ -725,9 +727,9 @@ Outputs:
   GetJobStatusFunctionName:
     Description: Job status checker function name
     Value: !Ref GetJobStatusFunction
-  SyncPostToSupabaseFunctionName:
-    Description: Sync post to Supabase function name
-    Value: !Ref SyncPostToSupabaseFunction
+  UpdateSentimentsFunctionName:
+    Description: Update sentiments function name
+    Value: !Ref UpdateSentimentsFunction
   ErrorTopicName:
     Description: SNS topic name for errors
     Value: !GetAtt ErrorTopic.TopicName

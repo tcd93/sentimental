@@ -18,18 +18,22 @@ def lambda_handler(event, _):
     logger = logging.getLogger()
     logger.setLevel(logging.INFO)
 
-    job = Job.from_dict(event)
+    job = Job.from_dict(event["Job"])
     provider = get_service_provider(logger=logger, provider_name=job.provider)
 
     status, provider_data = provider.query(job)
 
-    return Job(
-        job_id=job.job_id,
-        job_name=job.job_name,
-        status=status,
-        created_at=job.created_at,
-        post_ids=job.post_ids,
-        provider=job.provider,
-        provider_data=provider_data,
-        execution_id=job.execution_id,
-    ).to_dict()
+    return {
+        "ExecutionID": event["ExecutionID"],
+        "MaxCreatedAt": event["MaxCreatedAt"],
+        "MinCreatedAt": event["MinCreatedAt"],
+        "Job": Job(
+            job_id=job.job_id,
+            job_name=job.job_name,
+            status=status,
+            created_at=job.created_at,
+            post_ids=job.post_ids,
+            provider=job.provider,
+            provider_data=provider_data,
+        ).to_dict(),
+    }

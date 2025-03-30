@@ -77,7 +77,12 @@ def create_iceberg_table(
         created_at TIMESTAMP(0),
         body STRING,
         comments ARRAY<STRING>,
-        post_url STRING
+        post_url STRING,
+        sentiment STRING,
+        sentiment_score_mixed FLOAT,
+        sentiment_score_positive FLOAT,
+        sentiment_score_neutral FLOAT,
+        sentiment_score_negative FLOAT
     )
     PARTITIONED BY (month(created_at), bucket(16, keyword))
     LOCATION '{s3_location}'

@@ -68,7 +68,17 @@ class Post:
         if isinstance(data["created_at"], float):
             # convert from microsecond to second for datetime
             data["created_at"] = datetime.fromtimestamp(data["created_at"] / 1_000_000)
-        return cls(**data)
+        return cls(
+            id=data["id"],
+            keyword=data["keyword"],
+            source=data["source"],
+            title=data["title"],
+            created_at=data["created_at"],
+            body=data["body"],
+            comments=data["comments"],
+            execution_id=data["execution_id"],
+            post_url=data["post_url"],
+        )
 
     @classmethod
     def from_json(cls, json_str: str) -> "Post":

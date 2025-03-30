@@ -57,7 +57,6 @@ class Job:
     post_ids: list[str]
     provider: str
     provider_data: ChatGPTProviderData | ComprehendProviderData = None
-    execution_id: str | None = None
 
     def __post_init__(self):
         if isinstance(self.created_at, str):
@@ -87,7 +86,6 @@ class Job:
             post_ids=data["post_ids"],
             provider=data["provider"],
             provider_data=provider_data,
-            execution_id=data.get("execution_id"),
         )
 
     def to_dict(self) -> dict[str, any]:
@@ -111,7 +109,6 @@ class Job:
             "provider_data": (
                 self.provider_data.to_dict() if self.provider_data else None
             ),
-            "execution_id": self.execution_id,
         }
 
         return result

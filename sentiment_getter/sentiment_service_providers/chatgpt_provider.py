@@ -23,9 +23,7 @@ class ChatGPTProvider(SentimentServiceProvider):
     def get_provider_name(self) -> str:
         return "chatgpt"
 
-    def create_sentiment_job(
-        self, posts: list[Post], job_name: str, execution_id: str
-    ) -> Job:
+    def create_sentiment_job(self, posts: list[Post], job_name: str) -> Job:
         if not posts:
             raise ValueError("No posts to analyze")
 
@@ -98,7 +96,6 @@ class ChatGPTProvider(SentimentServiceProvider):
             post_ids=[post.id for post in posts],
             provider=self.get_provider_name(),
             provider_data=ChatGPTProviderData(openai_batch_id=batch_id),
-            execution_id=execution_id,
         )
 
     def query(self, job: Job) -> tuple[str, ChatGPTProviderData]:
@@ -188,7 +185,6 @@ class ChatGPTProvider(SentimentServiceProvider):
             scores = parsed["scores"]
             sentiments.append(
                 Sentiment(
-                    job=job,
                     post=post,
                     sentiment=sentiment,
                     mixed=scores["Mixed"],
