@@ -282,7 +282,7 @@ Resources:
       CodeUri: sentiment_getter/
       Handler: functions/job_creator/job_creator.lambda_handler
       Runtime: python3.12
-      Timeout: 360
+      Timeout: 180
       MemorySize: 512
       Layers:
         # Pandas must go first
@@ -305,8 +305,8 @@ Resources:
       CodeUri: sentiment_getter/
       Handler: functions/job_poller/update_sentiments.lambda_handler
       Runtime: python3.12
-      Timeout: 90
-      MemorySize: 256
+      Timeout: 180
+      MemorySize: 512
       Layers:
         - !Sub arn:aws:lambda:${AWS::Region}:336392948345:layer:AWSSDKPandas-Python312:1
         - !Ref PythonDependenciesLayer
