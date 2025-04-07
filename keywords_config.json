@@ -84,7 +84,6 @@
         { "keyword": "monster hunter: rise" },
         { "keyword": "monster hunter: world: iceborne" },
         { "keyword": "farming simulator 2" },
-        { "keyword": "the elder scrolls v: skyrim: special edition" },
         { "keyword": "battlefield 1" },
         { "keyword": "final fantasy xiv" },
         { "keyword": "final fantasy xv" },
@@ -95,7 +94,21 @@
         { "keyword": "hogwarts legacy" },
         { "keyword": "the first decendant" },
         { "keyword": "the last of us part i" },
-        { "keyword": "astro bot" }
+        { "keyword": "astro bot" },
+        { "keyword": "borderlands 3" },
+        { "keyword": "asphalt legends unite" },
+        { "keyword": "atomfall" },
+        { "keyword": "heroes of the storm" },
+        { "keyword": "the finals"},
+        { "keyword": "watchdogs: legion" },
+        { "keyword": "persona 5 royal" },
+        { "keyword": "metaphor: refantazio"},
+        { "keyword": "shin megami tensei v: vengeance" },
+        { "keyword": "mass effect: legendary edition" },
+        { "keyword": "detroit: become human" },
+        { "keyword": "marvel's spider-man: remastered" },
+        { "keyword": "marvel's spider-man: miles morales" }
+
       ],
       "steam": [
         { "keyword": "assassin's creed shadows" },
@@ -178,7 +191,6 @@
         { "keyword": "monster hunter: rise" },
         { "keyword": "monster hunter: world: iceborne" },
         { "keyword": "farming simulator 2" },
-        { "keyword": "the elder scrolls v: skyrim: special edition" },
         { "keyword": "battlefield 1" },
         { "keyword": "final fantasy xiv" },
         { "keyword": "final fantasy xv" },
@@ -189,7 +201,18 @@
         { "keyword": "hogwarts legacy" },
         { "keyword": "the first decendant" },
         { "keyword": "the last of us part i" },
-        { "keyword": "astro bot" }
+        { "keyword": "borderlands 3" },
+        { "keyword": "asphalt legends unite" },
+        { "keyword": "atomfall" },
+        { "keyword": "the finals"},
+        { "keyword": "watchdogs: legion" },
+        { "keyword": "persona 5 royal" },
+        { "keyword": "metaphor: refantazio"},
+        { "keyword": "shin megami tensei v: vengeance" },
+        { "keyword": "mass effect: legendary edition" },
+        { "keyword": "detroit: become human" },
+        { "keyword": "marvel's spider-man: remastered" },
+        { "keyword": "marvel's spider-man: miles morales" }
       ]      
     }
   }
