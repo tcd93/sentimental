@@ -50,7 +50,7 @@ def get_subreddits_from_chatgpt(
     """
     # Prompt for ChatGPT
     prompt = f"""
-    I need exactly 3 most relevant subreddits to find posts about "{keyword}".
+    I need exactly 3 most relevant subreddits to find posts about the game: "{keyword}".
     Provide ONLY the subreddit names as a comma-separated list.
     Do not include further explanations.
     """

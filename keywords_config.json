@@ -94,7 +94,8 @@
         { "keyword": "geometry dash" },
         { "keyword": "hogwarts legacy" },
         { "keyword": "the first decendant" },
-        { "keyword": "the last of us part i" }
+        { "keyword": "the last of us part i" },
+        { "keyword": "astro bot" }
       ],
       "steam": [
         { "keyword": "assassin's creed shadows" },
@@ -187,7 +188,8 @@
         { "keyword": "geometry dash" },
         { "keyword": "hogwarts legacy" },
         { "keyword": "the first decendant" },
-        { "keyword": "the last of us part i" }
+        { "keyword": "the last of us part i" },
+        { "keyword": "astro bot" }
       ]      
     }
   }
