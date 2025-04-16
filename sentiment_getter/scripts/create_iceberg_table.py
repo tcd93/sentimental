@@ -138,7 +138,7 @@ def parse_samconfig():
 
     database_name = "sentimental"
     table_name = "post"
-    s3_location = f"s3://{bucket_name}/iceberg/"
+    s3_location = f"s3://{bucket_name}/post-iceberg/"
     results_location = f"s3://{bucket_name}/athena-results/create-table/"
     columns = [
         ("id", "STRING"),
@@ -165,6 +165,7 @@ def parse_samconfig():
 
     # create sentiment result table
     table_name = "sentiment"
+    s3_location = f"s3://{bucket_name}/sentiment-iceberg/"
     columns = [
         ("keyword", "STRING"),
         ("created_at", "TIMESTAMP"),
