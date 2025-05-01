@@ -79,11 +79,11 @@ def create_iceberg_table(
         'table_type'='ICEBERG',
         'format'='parquet',
         'write_compression'='ZSTD',
-        'optimize_rewrite_data_file_threshold'='5',
-        'optimize_rewrite_delete_file_threshold'='2',
+        'optimize_rewrite_data_file_threshold'='1',
+        'optimize_rewrite_delete_file_threshold'='1',
         'vacuum_min_snapshots_to_keep'='1',
         'vacuum_max_snapshot_age_seconds'='216000',
-        'vacuum_max_metadata_files_to_keep'='20'
+        'vacuum_max_metadata_files_to_keep'='5'
     )
     """
 
