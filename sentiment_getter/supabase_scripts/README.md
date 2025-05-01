@@ -1,3 +1,0 @@
-This is a script folder to create the table on Supabase
-
-> There is no equivalent free-tier RDS on AWS (mine expired)...

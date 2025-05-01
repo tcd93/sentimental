@@ -1,0 +1,17 @@
+# Introduction
+
+This project is a sentiment analysis data pipeline for Reddit and Steam games.  
+Runs twice a day and the final data stored in `sentiment` table of `sentimental` database (see Glue Catalog).
+
+# Deployment
+1. Create the Iceberg tables before hand:
+```python
+cd ./sentiment_getter/scripts && python create_iceberg_table.py
+```
+
+2. Deploy the SAM template:
+```bash
+sam build
+sam deploy
+```
+
