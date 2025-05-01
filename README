@@ -9,7 +9,9 @@ Runs twice a day and the final data stored in `sentiment` table of `sentimental`
 cd ./sentiment_getter/scripts && python create_iceberg_table.py
 ```
 
-2. Deploy the SAM template:
+2. Create `sampconfig.toml` from the `samconfig.toml.example`
+
+3. Deploy the SAM template:
 ```bash
 sam build
 sam deploy
