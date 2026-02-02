@@ -683,10 +683,10 @@ Resources:
               - Variable: "$.Job.status"
                 StringEquals: "FAILED"
                 Next: SNSPublishError
-            Default: Wait75Seconds
-          Wait75Seconds:
+            Default: Wait300Seconds
+          Wait300Seconds:
             Type: Wait
-            Seconds: 75
+            Seconds: 300
             Next: GetJobStatus
           UpdateSentiments:
             Type: Task
