@@ -555,12 +555,12 @@ Resources:
               Input.$: "$"
             End: true
       Events:
-        HourlyTrigger:
-          Type: Schedule
+        HourlyTriggerV2:
+          Type: ScheduleV2
           Properties:
-            Schedule: rate(1 hour)
+            ScheduleExpression: rate(12 hours)
             Input: "{}"
-            Enabled: false
+            State: ENABLED
 
   JobCreationPipeline:
     Type: AWS::Serverless::StateMachine
